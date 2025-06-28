@@ -1,0 +1,6 @@
+bin
+.env
+frontend/dist
+node_modules
+dist
+test*.json
