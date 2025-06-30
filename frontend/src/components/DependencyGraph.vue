@@ -28,6 +28,22 @@
                     {{ isFullscreen ? "Exit Fullscreen" : "Fullscreen" }}
                 </button>
             </div>
+            <div class="status-filters" v-if="availableStatuses.size > 0">
+                <span class="filter-label">Hide Status:</span>
+                <label
+                    v-for="status in Array.from(availableStatuses)"
+                    :key="status"
+                    class="status-filter-item"
+                >
+                    <input
+                        type="checkbox"
+                        :value="status"
+                        :checked="statusFilters.has(status)"
+                        @change="toggleStatusFilter(status)"
+                    />
+                    <span class="status-name">{{ status }}</span>
+                </label>
+            </div>
         </div>
         <div class="graph-legend">
             <div class="legend-item">
@@ -59,7 +75,16 @@
                 <span>Phases: Concurrent Work Groups</span>
             </div>
         </div>
-        <div ref="graphContainer" class="graph-container"></div>
+        <div
+            ref="graphContainer"
+            class="graph-container"
+            :style="{ height: containerHeight + 'px' }"
+        ></div>
+        <div
+            class="resize-handle"
+            @mousedown="startResize"
+            :class="{ active: isResizing }"
+        ></div>
         <div v-if="selectedNode" class="node-tooltip" :style="tooltipStyle">
             <div class="tooltip-header">
                 <strong>{{ selectedNode.id }}</strong>
@@ -110,6 +135,10 @@ export default {
         const phaseCount = ref(0);
         const debugInfo = ref(null);
         const isFullscreen = ref(false);
+        const containerHeight = ref(600);
+        const isResizing = ref(false);
+        const statusFilters = ref(new Set(["DEFERRED"]));
+        const availableStatuses = ref(new Set());
 
         let svg, simulation, nodes, links, nodeElements, linkElements, zoom;
         let isInitialized = false;
@@ -528,6 +557,14 @@ export default {
         const initializeGraph = () => {
             if (!graphContainer.value || !props.graphData) return;
 
+            // Extract and store available statuses
+            const statuses = new Set(
+                props.graphData.nodes
+                    .map((node) => node.status)
+                    .filter(Boolean),
+            );
+            availableStatuses.value = statuses;
+
             // Clear existing graph
             if (svg) {
                 svg.remove();
@@ -604,29 +641,48 @@ export default {
                 .attr("d", "M0,0 L0,6 L9,3 z")
                 .attr("fill", "var(--ctp-blue)");
 
+            // Filter nodes by status
+            const filteredNodes = props.graphData.nodes.filter((node) => {
+                return !statusFilters.value.has(node.status);
+            });
+
             // Process data with better initial positioning
-            nodes = props.graphData.nodes.map((d, i) => ({
+            nodes = filteredNodes.map((d, i) => ({
                 ...d,
                 x: width / 2 + ((i % 3) - 1) * 100,
                 y: height / 2 + Math.floor(i / 3) * 80,
             }));
 
-            // Create a set of valid node IDs for quick lookup
+            // Create a set of valid node IDs for quick lookup (filtered nodes only)
             const validNodeIds = new Set(nodes.map((n) => n.id));
 
-            // Filter out links that reference non-existent nodes OR epic links
+            // Filter out links that reference non-existent nodes OR epic links OR filtered nodes
             const validEdges = props.graphData.edges.filter((edge) => {
+                // Check if source and target exist in filtered nodes
                 const sourceExists = validNodeIds.has(edge.from);
                 const targetExists = validNodeIds.has(edge.to);
 
                 if (!sourceExists || !targetExists) {
-                    console.warn("Filtering out edge with missing node(s):", {
-                        from: edge.from,
-                        to: edge.to,
-                        sourceExists,
-                        targetExists,
-                        edgeType: edge.type,
-                    });
+                    // Only log if nodes don't exist in original data (not just filtered out)
+                    const sourceInOriginal = props.graphData.nodes.some(
+                        (n) => n.id === edge.from,
+                    );
+                    const targetInOriginal = props.graphData.nodes.some(
+                        (n) => n.id === edge.to,
+                    );
+
+                    if (!sourceInOriginal || !targetInOriginal) {
+                        console.warn(
+                            "Filtering out edge with missing node(s):",
+                            {
+                                from: edge.from,
+                                to: edge.to,
+                                sourceExists: sourceInOriginal,
+                                targetExists: targetInOriginal,
+                                edgeType: edge.type,
+                            },
+                        );
+                    }
                     return false;
                 }
 
@@ -2029,6 +2085,43 @@ export default {
             }
         };
 
+        const toggleStatusFilter = (status) => {
+            if (statusFilters.value.has(status)) {
+                statusFilters.value.delete(status);
+            } else {
+                statusFilters.value.add(status);
+            }
+            // Trigger reactivity
+            statusFilters.value = new Set(statusFilters.value);
+            // Reinitialize graph with new filters
+            initializeGraph();
+        };
+
+        const startResize = (event) => {
+            isResizing.value = true;
+            const startY = event.clientY;
+            const startHeight = containerHeight.value;
+
+            const handleMouseMove = (moveEvent) => {
+                const deltaY = moveEvent.clientY - startY;
+                const newHeight = Math.max(300, startHeight + deltaY);
+                containerHeight.value = newHeight;
+            };
+
+            const handleMouseUp = () => {
+                isResizing.value = false;
+                document.removeEventListener("mousemove", handleMouseMove);
+                document.removeEventListener("mouseup", handleMouseUp);
+                // Resize graph after resize is complete
+                setTimeout(() => {
+                    handleResize();
+                }, 100);
+            };
+
+            document.addEventListener("mousemove", handleMouseMove);
+            document.addEventListener("mouseup", handleMouseUp);
+        };
+
         const handleFullscreenChange = () => {
             isFullscreen.value = !!(
                 document.fullscreenElement ||
@@ -2131,10 +2224,16 @@ export default {
             phaseCount,
             debugInfo,
             isFullscreen,
+            containerHeight,
+            isResizing,
+            statusFilters,
+            availableStatuses,
             resetZoom,
             toggleLayout,
             debugPhases,
             toggleFullscreen,
+            toggleStatusFilter,
+            startResize,
         };
     },
 };
@@ -2492,6 +2591,89 @@ export default {
 .phase-label:hover {
     font-size: 16px !important;
     fill: var(--ctp-blue) !important;
+}
+
+/* Status filters */
+.status-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+}
+
+.filter-label {
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
+    margin-right: var(--spacing-sm);
+}
+
+.status-filter-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    transition: var(--transition-fast);
+}
+
+.status-filter-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.status-filter-item input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.status-name {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Resize handle */
+.resize-handle {
+    width: 100%;
+    height: 8px;
+    background:
+        linear-gradient(
+            45deg,
+            transparent 45%,
+            var(--border-color) 45%,
+            var(--border-color) 55%,
+            transparent 55%
+        ),
+        linear-gradient(
+            -45deg,
+            transparent 45%,
+            var(--border-color) 45%,
+            var(--border-color) 55%,
+            transparent 55%
+        );
+    background-size: 8px 8px;
+    cursor: ns-resize;
+    transition: all 0.2s ease;
+    border-radius: var(--radius-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+    background-color: var(--primary-color);
+    transform: scaleY(1.5);
+}
+
+.resize-handle:hover {
+    opacity: 0.8;
+}
+
+.resize-handle.active {
+    opacity: 1;
+    background-color: var(--primary-hover);
 }
 
 /* Fullscreen styles */
