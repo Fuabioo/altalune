@@ -569,6 +569,7 @@ export default {
                 .attr("d", "M-9999,-9999 L-9999,-9999")
                 .style("filter", "drop-shadow(0 1px 2px rgba(0,0,0,0.1))")
                 .on("mouseover", function (event, d) {
+                    // Highlight the connection line
                     d3.select(this)
                         .transition()
                         .duration(150)
@@ -582,8 +583,56 @@ export default {
                             "stroke-dasharray",
                             d.type === "epic link" ? "8,8" : null,
                         );
+
+                    // Highlight connected nodes
+                    const sourceNode =
+                        typeof d.source === "string"
+                            ? nodes.find((n) => n.id === d.source)
+                            : d.source;
+                    const targetNode =
+                        typeof d.target === "string"
+                            ? nodes.find((n) => n.id === d.target)
+                            : d.target;
+
+                    if (sourceNode && targetNode) {
+                        // Add highlight class to connected nodes
+                        nodeElements
+                            .filter(
+                                (nodeData) =>
+                                    nodeData.id === sourceNode.id ||
+                                    nodeData.id === targetNode.id,
+                            )
+                            .classed("node-highlighted", true)
+                            .selectAll(".card-background")
+                            .transition()
+                            .duration(150)
+                            .attr("stroke-width", 4)
+                            .style(
+                                "filter",
+                                "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
+                            );
+
+                        // Dim other nodes
+                        nodeElements
+                            .filter(
+                                (nodeData) =>
+                                    nodeData.id !== sourceNode.id &&
+                                    nodeData.id !== targetNode.id,
+                            )
+                            .transition()
+                            .duration(150)
+                            .style("opacity", 0.4);
+
+                        // Dim other links
+                        linkElements
+                            .filter((linkData) => linkData !== d)
+                            .transition()
+                            .duration(150)
+                            .style("opacity", 0.2);
+                    }
                 })
                 .on("mouseout", function (event, d) {
+                    // Reset connection line
                     d3.select(this)
                         .transition()
                         .duration(150)
@@ -597,6 +646,24 @@ export default {
                             "stroke-dasharray",
                             d.type === "epic link" ? "5,5" : null,
                         );
+
+                    // Reset all nodes
+                    nodeElements
+                        .classed("node-highlighted", false)
+                        .transition()
+                        .duration(150)
+                        .style("opacity", 1)
+                        .selectAll(".card-background")
+                        .transition()
+                        .duration(150)
+                        .attr("stroke-width", 3)
+                        .style("filter", null);
+
+                    // Reset all links
+                    linkElements
+                        .transition()
+                        .duration(150)
+                        .style("opacity", 0.8);
                 });
 
             // Ensure proper attributes are set immediately
@@ -893,6 +960,119 @@ export default {
                     top: `${event.clientY - rect.top - 10}px`,
                 };
             });
+
+            // Add hover effects to nodes
+            nodeElements
+                .on("mouseover", function (event, d) {
+                    const currentNode = d;
+
+                    // Highlight current node
+                    d3.select(this)
+                        .classed("node-highlighted", true)
+                        .selectAll(".card-background")
+                        .transition()
+                        .duration(150)
+                        .attr("stroke-width", 4)
+                        .style(
+                            "filter",
+                            "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
+                        );
+
+                    // Find and highlight connected links and nodes
+                    const connectedNodeIds = new Set();
+
+                    linkElements.each(function (linkData) {
+                        const sourceId =
+                            typeof linkData.source === "string"
+                                ? linkData.source
+                                : linkData.source.id;
+                        const targetId =
+                            typeof linkData.target === "string"
+                                ? linkData.target
+                                : linkData.target.id;
+
+                        if (
+                            sourceId === currentNode.id ||
+                            targetId === currentNode.id
+                        ) {
+                            // Highlight connected link
+                            d3.select(this)
+                                .classed("link-highlighted", true)
+                                .transition()
+                                .duration(150)
+                                .attr("stroke-width", 4)
+                                .attr("opacity", 1)
+                                .style(
+                                    "filter",
+                                    "drop-shadow(0 3px 8px rgba(0,0,0,0.3))",
+                                );
+
+                            // Track connected nodes
+                            if (sourceId === currentNode.id) {
+                                connectedNodeIds.add(targetId);
+                            } else {
+                                connectedNodeIds.add(sourceId);
+                            }
+                        } else {
+                            // Dim unconnected links
+                            d3.select(this)
+                                .transition()
+                                .duration(150)
+                                .style("opacity", 0.2);
+                        }
+                    });
+
+                    // Highlight connected nodes and dim others
+                    nodeElements.each(function (nodeData) {
+                        if (nodeData.id !== currentNode.id) {
+                            if (connectedNodeIds.has(nodeData.id)) {
+                                // Highlight connected nodes
+                                d3.select(this)
+                                    .classed("node-connected", true)
+                                    .selectAll(".card-background")
+                                    .transition()
+                                    .duration(150)
+                                    .attr("stroke-width", 4)
+                                    .style(
+                                        "filter",
+                                        "drop-shadow(0 2px 6px rgba(0,0,0,0.2))",
+                                    );
+                            } else {
+                                // Dim unconnected nodes
+                                d3.select(this)
+                                    .transition()
+                                    .duration(150)
+                                    .style("opacity", 0.3);
+                            }
+                        }
+                    });
+                })
+                .on("mouseout", function (event, d) {
+                    // Reset all nodes
+                    nodeElements
+                        .classed("node-highlighted", false)
+                        .classed("node-connected", false)
+                        .transition()
+                        .duration(150)
+                        .style("opacity", 1)
+                        .selectAll(".card-background")
+                        .transition()
+                        .duration(150)
+                        .attr("stroke-width", 3)
+                        .style("filter", null);
+
+                    // Reset all links
+                    linkElements
+                        .classed("link-highlighted", false)
+                        .transition()
+                        .duration(150)
+                        .attr("stroke-width", 2.5)
+                        .style("opacity", 0.8)
+                        .style(
+                            "filter",
+                            "drop-shadow(0 1px 2px rgba(0,0,0,0.1))",
+                        );
+                });
 
             // Always calculate phases for debugging/analysis purposes
             const phaseData = calculatePhases();
@@ -1994,5 +2174,31 @@ export default {
 .phase-label:hover {
     font-size: 16px !important;
     fill: var(--ctp-blue) !important;
+}
+
+/* Node highlighting effects */
+.node-highlighted .card-background {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3)) !important;
+}
+
+.node-connected .card-background {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2)) !important;
+}
+
+.node-card {
+    transition: all 0.15s ease-in-out;
+}
+
+.node-card:hover .card-background {
+    transform: scale(1.02);
+}
+
+/* Link highlighting effects */
+.link-highlighted {
+    stroke-width: 4px !important;
+    opacity: 1 !important;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3)) !important;
 }
 </style>
