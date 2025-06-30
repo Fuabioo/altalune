@@ -45,6 +45,22 @@
                             {{ statusFilters.size }}
                         </span>
                     </button>
+                    <button
+                        v-if="assignees && assignees.length > 0"
+                        @click="toggleAssigneeRow"
+                        class="btn btn-secondary filter-toggle"
+                        :class="{ active: showAssigneeRow }"
+                        :aria-expanded="showAssigneeRow"
+                        aria-controls="assignee-row"
+                    >
+                        👤 Assignees
+                        <span
+                            v-if="assigneeFilters.size > 0"
+                            class="filter-count"
+                        >
+                            {{ assigneeFilters.size }}
+                        </span>
+                    </button>
                 </div>
             </div>
             <div
@@ -68,6 +84,48 @@
                                 @change="toggleStatusFilter(status)"
                             />
                             <span class="status-name">{{ status }}</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div
+                id="assignee-row"
+                class="assignee-row"
+                v-if="assignees && assignees.length > 0 && showAssigneeRow"
+            >
+                <div class="assignee-filters">
+                    <span class="filter-label">👤</span>
+                    <div class="assignee-items">
+                        <label
+                            v-for="assignee in assignees"
+                            :key="assignee.accountId"
+                            class="assignee-filter-item"
+                            :class="{
+                                active: assigneeFilters.has(assignee.accountId),
+                            }"
+                            :title="assignee.displayName || 'Unknown'"
+                        >
+                            <input
+                                type="checkbox"
+                                :value="assignee.accountId"
+                                :checked="
+                                    assigneeFilters.has(assignee.accountId)
+                                "
+                                @change="
+                                    toggleAssigneeFilter(assignee.accountId)
+                                "
+                            />
+                            <img
+                                v-if="assignee.avatarUrl"
+                                :src="assignee.avatarUrl"
+                                :alt="assignee.displayName || 'Assignee'"
+                                class="assignee-avatar"
+                            />
+                            <span class="assignee-name">{{
+                                (assignee.displayName || "Unknown").split(
+                                    " ",
+                                )[0]
+                            }}</span>
                         </label>
                     </div>
                 </div>
@@ -172,6 +230,12 @@
                             }}
                         </span>
                     </div>
+                    <div v-if="selectedNode.assignee" class="dialog-assignee">
+                        Assignee:
+                        <span class="assignee-value">{{
+                            selectedNode.assignee
+                        }}</span>
+                    </div>
                     <div class="dialog-actions">
                         <button
                             @click="copyNodeLink(selectedNode)"
@@ -213,6 +277,10 @@ export default {
                 );
             },
         },
+        assignees: {
+            type: Array,
+            default: () => [],
+        },
     },
     setup(props) {
         const graphContainer = ref(null);
@@ -227,6 +295,9 @@ export default {
         const statusFilters = ref(new Set(["DEFERRED"]));
         const availableStatuses = ref(new Set());
         const showFilters = ref(false);
+        const assigneeFilters = ref(new Set());
+        const availableAssignees = ref(new Set());
+        const showAssigneeRow = ref(false);
 
         let svg, simulation, nodes, links, nodeElements, linkElements, zoom;
         let isInitialized = false;
@@ -768,9 +839,24 @@ export default {
                 .attr("d", "M0,0 L0,6 L9,3 z")
                 .attr("fill", "var(--ctp-blue)");
 
-            // Filter nodes by status
+            // Filter nodes by status and assignee
             const filteredNodes = props.graphData.nodes.filter((node) => {
-                return !statusFilters.value.has(node.status);
+                // Filter by status
+                if (statusFilters.value.has(node.status)) {
+                    return false;
+                }
+                // Filter by assignee
+                if (assigneeFilters.value.size > 0) {
+                    // If node has no assignee but filters are active, hide it
+                    if (!node.assigneeId) {
+                        return false;
+                    }
+                    // If node has assignee but it's not in the filter, hide it
+                    if (!assigneeFilters.value.has(node.assigneeId)) {
+                        return false;
+                    }
+                }
+                return true;
             });
 
             // Process data with better initial positioning
@@ -1230,6 +1316,20 @@ export default {
                     );
                 })
                 .text((d) => d.status);
+
+            // Add assignee text (top-right corner, very subtle)
+            cardElements
+                .filter((d) => d.assignee)
+                .append("text")
+                .attr("class", "card-assignee")
+                .attr("x", (d) => (d.status === "Epic" ? 70 : 60))
+                .attr("y", (d) => (d.status === "Epic" ? -35 : -30))
+                .attr("text-anchor", "end")
+                .attr("font-size", "6px")
+                .attr("font-weight", "300")
+                .attr("fill", "#cbd5e1")
+                .attr("opacity", "0.6")
+                .text((d) => d.assignee.split(" ")[0].substring(0, 8)); // First name, max 8 chars
 
             // Add click handler for nodes
             nodeElements.on("click", (event, d) => {
@@ -2260,6 +2360,22 @@ export default {
             initializeGraph();
         };
 
+        const toggleAssigneeFilter = (assigneeId) => {
+            if (assigneeFilters.value.has(assigneeId)) {
+                assigneeFilters.value.delete(assigneeId);
+            } else {
+                assigneeFilters.value.add(assigneeId);
+            }
+            // Trigger reactivity
+            assigneeFilters.value = new Set(assigneeFilters.value);
+            // Reinitialize graph with new filters
+            initializeGraph();
+        };
+
+        const toggleAssigneeRow = () => {
+            showAssigneeRow.value = !showAssigneeRow.value;
+        };
+
         const startResize = (event) => {
             isResizing.value = true;
             const startY = event.clientY;
@@ -2482,12 +2598,17 @@ export default {
             statusFilters,
             availableStatuses,
             showFilters,
+            assigneeFilters,
+            availableAssignees,
+            showAssigneeRow,
             resetZoom,
             toggleLayout,
             debugPhases,
             toggleFullscreen,
             toggleStatusFilter,
+            toggleAssigneeFilter,
             toggleFilters,
+            toggleAssigneeRow,
             startResize,
             closeDialog,
             handleDialogClose,
@@ -2946,6 +3067,39 @@ export default {
         width: 100%;
         justify-content: center;
     }
+
+    .assignee-row {
+        margin-top: var(--spacing-xs);
+        padding: var(--spacing-xs);
+    }
+
+    .assignee-filters {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--spacing-xs);
+    }
+
+    .assignee-items {
+        width: auto;
+        justify-content: flex-start;
+        gap: 1px;
+    }
+
+    .assignee-filter-item {
+        font-size: 9px;
+        padding: 1px 2px;
+    }
+
+    .assignee-name {
+        max-width: 30px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .assignee-avatar {
+        width: 12px;
+        height: 12px;
+    }
 }
 
 /* Phase layout specific styles */
@@ -3131,6 +3285,100 @@ export default {
     font-size: var(--font-sm);
     color: var(--text-secondary);
     white-space: nowrap;
+}
+
+/* Assignee row */
+.assignee-row {
+    margin-top: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: transparent;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    opacity: 0.9;
+}
+
+.assignee-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.filter-label {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    margin-right: var(--spacing-xs);
+}
+
+.assignee-items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+}
+
+.assignee-filter-item {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: var(--radius-xs);
+    transition: var(--transition-fast);
+    border: 1px solid transparent;
+    background: transparent;
+    white-space: nowrap;
+    font-size: var(--font-xs);
+}
+
+.assignee-filter-item:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--border-light);
+}
+
+.assignee-filter-item.active {
+    background-color: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+.assignee-filter-item input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+}
+
+.assignee-avatar {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+}
+
+.assignee-name {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    max-width: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Card assignee text */
+.card-assignee {
+    font-family: inherit;
+    user-select: none;
+}
+
+/* Dialog assignee */
+.dialog-assignee {
+    margin: var(--spacing-sm) 0;
+}
+
+.assignee-value {
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
 }
 
 /* Resize handle */

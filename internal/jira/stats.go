@@ -4,6 +4,13 @@ import (
 	"github.com/Fuabioo/altalune/internal/model"
 )
 
+type Assignee struct {
+	AccountID   string `json:"accountId"`
+	DisplayName string `json:"displayName"`
+	AvatarURL   string `json:"avatarUrl"`
+	Active      bool   `json:"active"`
+}
+
 type EpicStats struct {
 	Total       int     `json:"total"`
 	ToDo        int     `json:"toDo"`
@@ -76,4 +83,49 @@ func CalculateTypeCounts(issues []*model.Ticket) TypeCounts {
 	}
 
 	return counts
+}
+
+func ExtractAssignees(issues []*model.Ticket) []Assignee {
+	assigneeMap := make(map[string]Assignee)
+
+	for _, issue := range issues {
+		if issue.Fields.Assignee.AccountID != "" {
+			avatarURL := getAvatarURL(issue.Fields.Assignee.AvatarURLs)
+			assigneeMap[issue.Fields.Assignee.AccountID] = Assignee{
+				AccountID:   issue.Fields.Assignee.AccountID,
+				DisplayName: issue.Fields.Assignee.DisplayName,
+				AvatarURL:   avatarURL,
+				Active:      issue.Fields.Assignee.Active,
+			}
+		}
+	}
+
+	// Convert map to slice
+	assignees := make([]Assignee, 0, len(assigneeMap))
+	for _, assignee := range assigneeMap {
+		assignees = append(assignees, assignee)
+	}
+
+	return assignees
+}
+
+// getAvatarURL extracts the best available avatar URL from the available URLs
+func getAvatarURL(avatarURLs map[string]string) string {
+	// Preferred sizes in order of preference
+	preferredSizes := []string{"48x48", "32x32", "24x24", "16x16"}
+
+	for _, size := range preferredSizes {
+		if url, exists := avatarURLs[size]; exists && url != "" {
+			return url
+		}
+	}
+
+	// If no preferred size is found, return any available URL
+	for _, url := range avatarURLs {
+		if url != "" {
+			return url
+		}
+	}
+
+	return ""
 }

@@ -123,6 +123,7 @@ func (s *Server) Start() error {
 			All          []*model.Ticket   `json:"tickets"`
 			Total        int               `json:"total"`
 			JiraBaseURL  string            `json:"jiraBaseUrl"`
+			Assignees    []jira.Assignee   `json:"assignees"`
 		}
 
 		startAt := uint(0)
@@ -161,6 +162,7 @@ func (s *Server) Start() error {
 		response.Graph = jira.BuildGraph(response.All, ticket)
 		response.Issues = response.All
 		response.JiraBaseURL = s.config.jira.Workspace
+		response.Assignees = jira.ExtractAssignees(response.All)
 
 		// Find epic in the issues (if it exists)
 		for _, issue := range response.All {

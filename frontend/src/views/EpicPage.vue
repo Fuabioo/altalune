@@ -47,6 +47,7 @@
                     v-if="apiData.graph"
                     :jiraBaseUrl="apiData.jiraBaseUrl"
                     :graphData="apiData.graph"
+                    :assignees="apiData.assignees || []"
                 />
 
                 <!-- Charts Section -->
