@@ -98,6 +98,13 @@
                 <div class="legend-line epic-link"></div>
                 <span>Epic Link</span>
             </div>
+            <div class="legend-item">
+                <div class="legend-line status-line"></div>
+                <span
+                    >Connection Lines: Colored by Source Ticket
+                    Classification</span
+                >
+            </div>
             <div v-if="layoutType === 'phases'" class="legend-item">
                 <div class="legend-color phase-indicator"></div>
                 <span>Phases: Concurrent Work Groups</span>
@@ -147,6 +154,23 @@
                             :class="`status-${selectedNode.status.toLowerCase().replace(/\s+/g, '-')}`"
                             >{{ selectedNode.status }}</span
                         >
+                    </div>
+                    <div
+                        v-if="
+                            selectedNode.points ||
+                            selectedNode.storyPoints ||
+                            selectedNode.story_points
+                        "
+                        class="dialog-points"
+                    >
+                        Story Points:
+                        <span class="points-value">
+                            {{
+                                selectedNode.points ||
+                                selectedNode.storyPoints ||
+                                selectedNode.story_points
+                            }}
+                        </span>
                     </div>
                     <div class="dialog-actions">
                         <button
@@ -208,6 +232,45 @@ export default {
         let isInitialized = false;
         let lastDataHash = null;
         let mutationObserver = null;
+
+        // Function to get line color based on source node classification
+        const getLineColorByStatus = (sourceNodeRef) => {
+            let sourceNode;
+            if (typeof sourceNodeRef === "string") {
+                sourceNode = nodes.find((n) => n.id === sourceNodeRef);
+            } else if (sourceNodeRef && sourceNodeRef.id) {
+                sourceNode = sourceNodeRef;
+            } else {
+                return "var(--ctp-overlay1)"; // Default gray color
+            }
+
+            if (!sourceNode || !sourceNode.classification) {
+                return "var(--ctp-overlay1)"; // Default gray color
+            }
+
+            const classification = sourceNode.classification.toLowerCase();
+
+            if (classification === "done") {
+                return "var(--ctp-green)"; // Green for completed
+            } else if (classification === "epic") {
+                return "var(--ctp-mauve)"; // Purple for epic
+            } else if (classification === "indeterminate") {
+                return "var(--ctp-yellow)"; // Yellow for in progress
+            } else if (classification === "new") {
+                return "var(--ctp-blue)"; // Blue for backlog/new
+            } else {
+                return "var(--ctp-overlay1)"; // Default gray for unknown classification
+            }
+        };
+
+        // Function to update link colors based on current node statuses
+        const updateLinkColors = () => {
+            if (linkElements) {
+                linkElements.attr("stroke", (d) =>
+                    getLineColorByStatus(d.source.id || d.source),
+                );
+            }
+        };
 
         // Helper function to calculate connection point on card edge
         const getCardConnectionPoint = (sourceNode, targetNode) => {
@@ -799,7 +862,7 @@ export default {
                 .attr("class", "link")
                 .attr("data-type", (d) => d.type)
                 .attr("stroke", (d) =>
-                    d.type === "Blocks" ? "var(--ctp-red)" : "var(--ctp-blue)",
+                    getLineColorByStatus(d.source.id || d.source),
                 )
                 .attr("stroke-width", 2.5)
                 .attr("stroke-dasharray", (d) =>
@@ -925,9 +988,7 @@ export default {
                 // Also ensure stroke attributes are properly set
                 linkElements
                     .attr("stroke", (d) =>
-                        d.type === "Blocks"
-                            ? "var(--ctp-red)"
-                            : "var(--ctp-blue)",
+                        getLineColorByStatus(d.source.id || d.source),
                     )
                     .attr("stroke-width", 2);
             }
@@ -1019,6 +1080,7 @@ export default {
                 });
 
             // Add ticket ID (bold, top)
+            // Add ticket id
             cardElements
                 .append("text")
                 .attr("class", "card-id")
@@ -1029,6 +1091,40 @@ export default {
                 .attr("font-weight", "bold")
                 .attr("fill", "#2d3748")
                 .text((d) => d.id);
+
+            // Add story points badge if available
+            const pointsGroup = cardElements
+                .filter((d) => d.points || d.storyPoints || d.story_points)
+                .append("g")
+                .attr("class", "card-points-badge")
+                .attr("transform", (d) =>
+                    d.status === "Epic"
+                        ? "translate(60, -35)"
+                        : "translate(50, -30)",
+                );
+
+            // Add circular background for points badge
+            pointsGroup
+                .append("circle")
+                .attr("r", 10)
+                .attr("fill", "var(--primary-color)")
+                .attr("stroke", "var(--card-bg)")
+                .attr("stroke-width", "2")
+                .attr("opacity", "0.95");
+
+            // Add points text
+            pointsGroup
+                .append("text")
+                .attr("class", "card-points-text")
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "central")
+                .attr("font-size", "9px")
+                .attr("font-weight", "bold")
+                .attr("fill", "#ffffff")
+                .text((d) => {
+                    const points = d.points || d.storyPoints || d.story_points;
+                    return points || "";
+                });
 
             // Add ticket title (wrapped text)
             cardElements
@@ -1718,9 +1814,7 @@ export default {
                         .style("visibility", "visible")
                         .style("opacity", 1)
                         .attr("stroke", (d) =>
-                            d.type === "Blocks"
-                                ? "var(--ctp-red)"
-                                : "var(--ctp-blue)",
+                            getLineColorByStatus(d.source.id || d.source),
                         )
                         .attr("stroke-width", 2);
                 } else {
@@ -2449,6 +2543,27 @@ export default {
     color: var(--text-primary);
 }
 
+.card-id {
+    font-size: var(--font-sm);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+}
+
+.card-points-badge {
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.card-points-badge:hover {
+    opacity: 1;
+}
+
+.card-points-text {
+    font-family: "Arial", sans-serif;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    letter-spacing: -0.5px;
+}
+
 .phase-counter {
     font-size: var(--font-sm);
     font-weight: var(--font-normal);
@@ -2550,11 +2665,11 @@ export default {
 }
 
 .legend-color.new {
-    background: var(--ctp-overlay1);
+    background: var(--ctp-blue);
 }
 
 .legend-color.indeterminate {
-    background: var(--ctp-blue);
+    background: var(--ctp-yellow);
 }
 
 .legend-color.done {
@@ -2585,6 +2700,18 @@ export default {
         var(--primary-color) 5px,
         transparent 5px,
         transparent 10px
+    );
+}
+
+.legend-line.status-line {
+    background: linear-gradient(
+        to right,
+        var(--ctp-green) 0%,
+        var(--ctp-green) 33%,
+        var(--ctp-yellow) 33%,
+        var(--ctp-yellow) 66%,
+        var(--ctp-blue) 66%,
+        var(--ctp-blue) 100%
     );
 }
 
@@ -2688,6 +2815,21 @@ export default {
     border-radius: var(--radius-sm);
     background: var(--hover-bg);
     color: var(--text-primary);
+}
+
+.dialog-points {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    margin-top: var(--spacing-xs);
+}
+
+.points-value {
+    font-weight: var(--font-semibold);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    background: var(--primary-light);
+    color: var(--primary-color);
+    margin-left: var(--spacing-xs);
 }
 
 .dialog-actions {
