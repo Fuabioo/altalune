@@ -1,45 +1,41 @@
 <template>
     <div class="progress-section">
         <div class="card">
-            <h2>{{ title }}</h2>
-
-            <!-- Completion Progress -->
-            <div class="progress-item">
+            <div class="progress-container">
                 <div class="progress-header">
-                    <span class="progress-label">Completed Tasks</span>
-                    <span class="progress-value"
-                        >{{ Math.round(completionPercentage) }}%</span
-                    >
+                    <span class="progress-title">{{ title }}</span>
+                    <span class="progress-summary">
+                        {{ completedIssues }}/{{ totalIssues }} completed
+                        <span v-if="inProgressIssues > 0">
+                            • {{ inProgressIssues }} in progress</span
+                        >
+                    </span>
                 </div>
-                <div class="progress-bar">
-                    <div
-                        class="progress-fill completion-fill"
-                        :style="{ width: completionPercentage + '%' }"
-                    ></div>
-                </div>
-            </div>
 
-            <!-- In Progress -->
-            <div class="progress-item">
-                <div class="progress-header">
-                    <span class="progress-label">In Progress Tasks</span>
-                    <span class="progress-value"
-                        >{{ Math.round(progressPercentage) }}%</span
-                    >
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        <!-- Completed section -->
+                        <div
+                            class="progress-fill completion-fill"
+                            :style="{ width: completionPercentage + '%' }"
+                        ></div>
+                        <!-- In progress section -->
+                        <div
+                            class="progress-fill progress-fill-blue"
+                            :style="{
+                                width: progressPercentage + '%',
+                                left: completionPercentage + '%',
+                            }"
+                        ></div>
+                    </div>
+                    <div class="progress-percentage">
+                        {{
+                            Math.round(
+                                completionPercentage + progressPercentage,
+                            )
+                        }}%
+                    </div>
                 </div>
-                <div class="progress-bar">
-                    <div
-                        class="progress-fill progress-fill-blue"
-                        :style="{ width: progressPercentage + '%' }"
-                    ></div>
-                </div>
-            </div>
-
-            <div class="summary-labels">
-                <span
-                    >{{ completedIssues }} completed • {{ inProgressIssues }} in
-                    progress • {{ totalIssues }} total</span
-                >
             </div>
         </div>
     </div>
@@ -81,72 +77,77 @@ export default {
 @use "@/styles/variables.scss" as *;
 
 .progress-section {
-    margin-bottom: var(--spacing-xxl);
+    margin-bottom: var(--spacing-lg);
 }
 
 .card {
     @include card-style;
-    padding: var(--spacing-lg);
+    padding: var(--spacing-md);
 }
 
-.card h2 {
-    margin: 0 0 var(--spacing-lg) 0;
-    color: var(--text-primary);
-    font-size: var(--font-xxl);
-    font-weight: var(--font-semibold);
-}
-
-.progress-item {
-    margin-bottom: var(--spacing-lg);
-}
-
-.progress-item:last-of-type {
-    margin-bottom: var(--spacing-md);
+.progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
 }
 
 .progress-header {
     @include flex-between;
-    margin-bottom: var(--spacing-xs);
+    align-items: baseline;
 }
 
-.progress-label {
-    font-size: var(--font-md);
+.progress-title {
+    font-size: var(--font-lg);
     color: var(--text-primary);
+    font-weight: var(--font-semibold);
+    margin: 0;
+}
+
+.progress-summary {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
     font-weight: var(--font-medium);
 }
 
-.progress-value {
-    font-size: var(--font-md);
-    font-weight: var(--font-semibold);
-    color: var(--text-primary);
+.progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .progress-bar {
-    width: 100%;
-    height: 8px;
+    flex: 1;
+    height: 6px;
     background-color: var(--border-light);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     overflow: hidden;
+    position: relative;
 }
 
 .progress-fill {
     height: 100%;
-    border-radius: var(--radius-md);
-    transition: width 0.3s ease;
+    position: absolute;
+    top: 0;
+    border-radius: var(--radius-sm);
+    transition:
+        width 0.3s ease,
+        left 0.3s ease;
 }
 
 .completion-fill {
     background: var(--ctp-green);
+    left: 0;
 }
 
 .progress-fill-blue {
     background: var(--ctp-blue);
 }
 
-.summary-labels {
-    text-align: center;
+.progress-percentage {
     font-size: var(--font-sm);
-    color: var(--text-secondary);
-    font-weight: var(--font-medium);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    min-width: 3ch;
+    text-align: right;
 }
 </style>
