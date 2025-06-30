@@ -11,7 +11,8 @@
                 <button @click="resetZoom" class="btn btn-secondary">
                     Reset View
                 </button>
-                <button @click="toggleLayout" class="btn btn-secondary">
+                <!-- these toggles are for the development only, not production ready just don't break them -->
+                <!-- <button @click="toggleLayout" class="btn btn-secondary">
                     {{
                         layoutType === "phase"
                             ? "Force Layout"
@@ -19,9 +20,12 @@
                               ? "Tree Layout"
                               : "Phase Layout"
                     }}
-                </button>
-                <button @click="debugPhases" class="btn btn-secondary">
+                </button> -->
+                <!-- <button @click="debugPhases" class="btn btn-secondary">
                     Debug Phases
+                </button> -->
+                <button @click="toggleFullscreen" class="btn btn-secondary">
+                    {{ isFullscreen ? "Exit Fullscreen" : "Fullscreen" }}
                 </button>
             </div>
         </div>
@@ -105,6 +109,7 @@ export default {
         const layoutType = ref("phase");
         const phaseCount = ref(0);
         const debugInfo = ref(null);
+        const isFullscreen = ref(false);
 
         let svg, simulation, nodes, links, nodeElements, linkElements, zoom;
         let isInitialized = false;
@@ -528,14 +533,31 @@ export default {
                 svg.remove();
             }
 
-            const width = graphContainer.value.clientWidth;
-            const height = graphContainer.value.clientHeight;
+            // Force container to update dimensions
+            const containerRect = graphContainer.value.getBoundingClientRect();
+            const width = Math.max(
+                containerRect.width,
+                graphContainer.value.clientWidth,
+                400,
+            );
+            const height = Math.max(
+                containerRect.height,
+                graphContainer.value.clientHeight,
+                300,
+            );
+
+            console.log("Initializing graph with dimensions:", {
+                width,
+                height,
+                isFullscreen: isFullscreen.value,
+            });
 
             svg = d3
                 .select(graphContainer.value)
                 .append("svg")
                 .attr("width", width)
-                .attr("height", height);
+                .attr("height", height)
+                .style("background-color", "transparent");
 
             // Add zoom and pan behavior
             zoom = d3
@@ -1893,7 +1915,33 @@ export default {
         };
 
         const handleResize = () => {
+            if (!graphContainer.value) return;
+
+            console.log("Handling resize, container dimensions:", {
+                width: graphContainer.value.clientWidth,
+                height: graphContainer.value.clientHeight,
+                isFullscreen: isFullscreen.value,
+            });
+
             nextTick(() => {
+                // Force container to recognize new dimensions
+                if (svg) {
+                    const newWidth = graphContainer.value.clientWidth;
+                    const newHeight = graphContainer.value.clientHeight;
+
+                    // Update SVG dimensions immediately
+                    svg.attr("width", newWidth).attr("height", newHeight);
+
+                    // Update zoom center
+                    if (zoom) {
+                        zoom.translateExtent([
+                            [0, 0],
+                            [newWidth, newHeight],
+                        ]);
+                    }
+                }
+
+                // Reinitialize graph with new dimensions
                 initializeGraph();
             });
         };
@@ -1949,9 +1997,86 @@ export default {
             alert(debugMessage);
         };
 
+        const toggleFullscreen = async () => {
+            try {
+                if (!isFullscreen.value) {
+                    console.log("Entering fullscreen...");
+                    // Enter fullscreen
+                    if (graphContainer.value.requestFullscreen) {
+                        await graphContainer.value.requestFullscreen();
+                    } else if (graphContainer.value.webkitRequestFullscreen) {
+                        await graphContainer.value.webkitRequestFullscreen();
+                    } else if (graphContainer.value.mozRequestFullScreen) {
+                        await graphContainer.value.mozRequestFullScreen();
+                    } else if (graphContainer.value.msRequestFullscreen) {
+                        await graphContainer.value.msRequestFullscreen();
+                    }
+                } else {
+                    console.log("Exiting fullscreen...");
+                    // Exit fullscreen
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        await document.webkitExitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        await document.mozCancelFullScreen();
+                    } else if (document.msExitFullscreen) {
+                        await document.msExitFullscreen();
+                    }
+                }
+            } catch (error) {
+                console.warn("Fullscreen toggle failed:", error);
+            }
+        };
+
+        const handleFullscreenChange = () => {
+            isFullscreen.value = !!(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+
+            // Wait for fullscreen transition to complete before resizing
+            // Multiple delays ensure proper rendering
+            setTimeout(() => {
+                console.log("Fullscreen change detected, starting resize...");
+                handleResize();
+            }, 100);
+
+            setTimeout(() => {
+                console.log("Second resize attempt...");
+                handleResize();
+            }, 300);
+
+            setTimeout(() => {
+                console.log("Final resize and redraw...");
+                // Force complete redraw for fullscreen
+                initializeGraph();
+            }, 500);
+        };
+
         onMounted(() => {
             initializeGraph();
             window.addEventListener("resize", handleResize);
+
+            // Add fullscreen event listeners
+            document.addEventListener(
+                "fullscreenchange",
+                handleFullscreenChange,
+            );
+            document.addEventListener(
+                "webkitfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.addEventListener(
+                "mozfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.addEventListener(
+                "MSFullscreenChange",
+                handleFullscreenChange,
+            );
         });
 
         onUnmounted(() => {
@@ -1961,6 +2086,24 @@ export default {
             if (simulation) {
                 simulation.stop();
             }
+
+            // Remove fullscreen event listeners
+            document.removeEventListener(
+                "fullscreenchange",
+                handleFullscreenChange,
+            );
+            document.removeEventListener(
+                "webkitfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.removeEventListener(
+                "mozfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.removeEventListener(
+                "MSFullscreenChange",
+                handleFullscreenChange,
+            );
         });
 
         watch(
@@ -1987,9 +2130,11 @@ export default {
             layoutType,
             phaseCount,
             debugInfo,
+            isFullscreen,
             resetZoom,
             toggleLayout,
             debugPhases,
+            toggleFullscreen,
         };
     },
 };
@@ -2347,6 +2492,75 @@ export default {
 .phase-label:hover {
     font-size: 16px !important;
     fill: var(--ctp-blue) !important;
+}
+
+/* Fullscreen styles */
+.dependency-graph:fullscreen {
+    background-color: var(--bg-color);
+    padding: var(--spacing-md);
+}
+
+.dependency-graph:-webkit-full-screen {
+    background-color: var(--bg-color);
+    padding: var(--spacing-md);
+}
+
+.dependency-graph:-moz-full-screen {
+    background-color: var(--bg-color);
+    padding: var(--spacing-md);
+}
+
+.dependency-graph:-ms-fullscreen {
+    background-color: var(--bg-color);
+    padding: var(--spacing-md);
+}
+
+.dependency-graph:fullscreen .graph-container {
+    height: calc(100vh - 200px);
+    width: 100%;
+}
+
+.dependency-graph:-webkit-full-screen .graph-container {
+    height: calc(100vh - 200px);
+    width: 100%;
+}
+
+.dependency-graph:-moz-full-screen .graph-container {
+    height: calc(100vh - 200px);
+    width: 100%;
+}
+
+.dependency-graph:-ms-fullscreen .graph-container {
+    height: calc(100vh - 200px);
+    width: 100%;
+}
+
+.dependency-graph:fullscreen .graph-header {
+    background-color: var(--card-bg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-md);
+    box-shadow: var(--shadow-md);
+}
+
+.dependency-graph:fullscreen .graph-legend {
+    background-color: var(--card-bg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-md);
+    box-shadow: var(--shadow-md);
+}
+
+/* Fullscreen button styling */
+.btn:has-text("Fullscreen"),
+.btn:has-text("Exit Fullscreen") {
+    background-color: var(--ctp-blue);
+    color: var(--text-inverse);
+}
+
+.btn:has-text("Fullscreen"):hover,
+.btn:has-text("Exit Fullscreen"):hover {
+    background-color: var(--ctp-sapphire);
 }
 
 /* Node highlighting effects */
