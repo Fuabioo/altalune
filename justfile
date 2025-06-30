@@ -35,7 +35,8 @@ run-fe:
 # Run both frontend and backend concurrently
 run:
     @echo "Starting both Frontend and Backend servers..."
-    @just run-be & just run-fe
+    just run-fe
+    # @just run-be & just run-fe
 
 # Clean build artifacts
 clean:
