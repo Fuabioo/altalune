@@ -52,10 +52,11 @@ func BuildGraph(issues []*model.Ticket, epicKey string) Graph {
 	for _, issue := range issues {
 		if issue.Key != epicKey {
 			edges = append(edges, GraphEdge{
-				From:   epicKey,
-				To:     issue.Key,
-				Type:   "epic link",
-				Status: "Epic",
+				From:           epicKey,
+				To:             issue.Key,
+				Type:           "epic link",
+				Status:         "Epic",
+				Classification: "epic",
 			})
 		}
 

@@ -113,33 +113,39 @@ export default {
 
         // Helper function to calculate connection point on card edge
         const getCardConnectionPoint = (sourceNode, targetNode) => {
+            // Resolve string IDs to actual node objects
+            const resolvedSourceNode =
+                typeof sourceNode === "string"
+                    ? nodes.find((n) => n.id === sourceNode)
+                    : sourceNode;
+            const resolvedTargetNode =
+                typeof targetNode === "string"
+                    ? nodes.find((n) => n.id === targetNode)
+                    : targetNode;
+
             // Add safety checks
             if (
-                !sourceNode ||
-                !targetNode ||
-                sourceNode.x === undefined ||
-                sourceNode.y === undefined ||
-                targetNode.x === undefined ||
-                targetNode.y === undefined
+                !resolvedSourceNode ||
+                !resolvedTargetNode ||
+                resolvedSourceNode.x === undefined ||
+                resolvedSourceNode.y === undefined ||
+                resolvedTargetNode.x === undefined ||
+                resolvedTargetNode.y === undefined
             ) {
                 return {
-                    source: sourceNode || { x: 0, y: 0 },
-                    target: targetNode || { x: 0, y: 0 },
+                    source: resolvedSourceNode || { x: 0, y: 0 },
+                    target: resolvedTargetNode || { x: 0, y: 0 },
                     path: "M0,0 L0,0",
                 };
             }
 
             // Determine if nodes are epic cards (larger)
             const isSourceEpic =
-                (sourceNode.id && sourceNode.id.includes("Epic")) ||
-                (sourceNode.label && sourceNode.label === "Epic") ||
-                (sourceNode.classification &&
-                    sourceNode.classification === "epic");
+                resolvedSourceNode.status &&
+                resolvedSourceNode.status === "Epic";
             const isTargetEpic =
-                (targetNode.id && targetNode.id.includes("Epic")) ||
-                (targetNode.label && targetNode.label === "Epic") ||
-                (targetNode.classification &&
-                    targetNode.classification === "epic");
+                resolvedTargetNode.status &&
+                resolvedTargetNode.status === "Epic";
 
             // Card dimensions
             const sourceWidth = isSourceEpic ? 160 : 140;
@@ -148,14 +154,20 @@ export default {
             const targetHeight = isTargetEpic ? 90 : 80;
 
             // Calculate vector from source to target
-            const dx = targetNode.x - sourceNode.x;
-            const dy = targetNode.y - sourceNode.y;
+            const dx = resolvedTargetNode.x - resolvedSourceNode.x;
+            const dy = resolvedTargetNode.y - resolvedSourceNode.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance === 0) {
                 return {
-                    source: { x: sourceNode.x, y: sourceNode.y },
-                    target: { x: targetNode.x, y: targetNode.y },
+                    source: {
+                        x: resolvedSourceNode.x,
+                        y: resolvedSourceNode.y,
+                    },
+                    target: {
+                        x: resolvedTargetNode.x,
+                        y: resolvedTargetNode.y,
+                    },
                     path: "M0,0 L0,0",
                 };
             }
@@ -166,14 +178,14 @@ export default {
 
             // Calculate intersection with source card edge
             const sourceIntersection = {
-                x: sourceNode.x + unitX * (sourceWidth / 2),
-                y: sourceNode.y + unitY * (sourceHeight / 2),
+                x: resolvedSourceNode.x + unitX * (sourceWidth / 2),
+                y: resolvedSourceNode.y + unitY * (sourceHeight / 2),
             };
 
             // Calculate intersection with target card edge
             const targetIntersection = {
-                x: targetNode.x - unitX * (targetWidth / 2),
-                y: targetNode.y - unitY * (targetHeight / 2),
+                x: resolvedTargetNode.x - unitX * (targetWidth / 2),
+                y: resolvedTargetNode.y - unitY * (targetHeight / 2),
             };
 
             // Create curved path for force layout too
@@ -199,39 +211,62 @@ export default {
 
         // Helper function to calculate side connections for phase layout
         const getPhaseConnectionPoint = (sourceNode, targetNode) => {
+            // Resolve string IDs to actual node objects
+            const resolvedSourceNode =
+                typeof sourceNode === "string"
+                    ? nodes.find((n) => n.id === sourceNode)
+                    : sourceNode;
+            const resolvedTargetNode =
+                typeof targetNode === "string"
+                    ? nodes.find((n) => n.id === targetNode)
+                    : targetNode;
+
             // Add null checks to prevent undefined errors
+            if (!resolvedSourceNode || !resolvedTargetNode) {
+                console.warn(
+                    "Missing node(s) referenced in edge - skipping link:",
+                    {
+                        sourceId:
+                            typeof sourceNode === "string"
+                                ? sourceNode
+                                : sourceNode?.id,
+                        targetId:
+                            typeof targetNode === "string"
+                                ? targetNode
+                                : targetNode?.id,
+                        sourceFound: !!resolvedSourceNode,
+                        targetFound: !!resolvedTargetNode,
+                    },
+                );
+                return null; // Return null to indicate this link should be skipped
+            }
+
             if (
-                !sourceNode ||
-                !targetNode ||
-                sourceNode.x === undefined ||
-                sourceNode.y === undefined ||
-                targetNode.x === undefined ||
-                targetNode.y === undefined
+                resolvedSourceNode.x === undefined ||
+                resolvedSourceNode.y === undefined ||
+                resolvedTargetNode.x === undefined ||
+                resolvedTargetNode.y === undefined
             ) {
                 console.warn(
-                    "Invalid nodes passed to getPhaseConnectionPoint:",
+                    "Invalid node positions in getPhaseConnectionPoint:",
                     {
-                        sourceNode,
-                        targetNode,
+                        sourceNode: resolvedSourceNode,
+                        targetNode: resolvedTargetNode,
                     },
                 );
                 return {
-                    source: sourceNode || { x: 0, y: 0 },
-                    target: targetNode || { x: 0, y: 0 },
+                    source: resolvedSourceNode || { x: 0, y: 0 },
+                    target: resolvedTargetNode || { x: 0, y: 0 },
                     path: "M0,0 L0,0",
                 };
             }
 
             const isSourceEpic =
-                (sourceNode.id && sourceNode.id.includes("Epic")) ||
-                (sourceNode.label && sourceNode.label === "Epic") ||
-                (sourceNode.classification &&
-                    sourceNode.classification === "epic");
+                resolvedSourceNode.status &&
+                resolvedSourceNode.status === "Epic";
             const isTargetEpic =
-                (targetNode.id && targetNode.id.includes("Epic")) ||
-                (targetNode.label && targetNode.label === "Epic") ||
-                (targetNode.classification &&
-                    targetNode.classification === "epic");
+                resolvedTargetNode.status &&
+                resolvedTargetNode.status === "Epic";
 
             const sourceWidth = isSourceEpic ? 160 : 140;
             const targetWidth = isTargetEpic ? 160 : 140;
@@ -240,18 +275,18 @@ export default {
 
             // Calculate connection points on card edges
             const sourceX =
-                sourceNode.x +
-                (targetNode.x > sourceNode.x
+                resolvedSourceNode.x +
+                (resolvedTargetNode.x > resolvedSourceNode.x
                     ? sourceWidth / 2
                     : -sourceWidth / 2);
             const targetX =
-                targetNode.x +
-                (targetNode.x > sourceNode.x
+                resolvedTargetNode.x +
+                (resolvedTargetNode.x > resolvedSourceNode.x
                     ? -targetWidth / 2
                     : targetWidth / 2);
 
-            const sourceY = sourceNode.y;
-            const targetY = targetNode.y;
+            const sourceY = resolvedSourceNode.y;
+            const targetY = resolvedTargetNode.y;
 
             // Create right-angle path (orthogonal routing)
             // The path will go: source -> horizontal -> vertical -> target
@@ -302,9 +337,31 @@ export default {
                         ? nodes.find((n) => n.id === d.target)
                         : d.target;
 
+                // Check if nodes exist
+                if (!sourceNode || !targetNode) {
+                    console.warn("Missing node(s) in getSafeConnectionPoint:", {
+                        sourceId:
+                            typeof d.source === "string"
+                                ? d.source
+                                : d.source?.id,
+                        targetId:
+                            typeof d.target === "string"
+                                ? d.target
+                                : d.target?.id,
+                        sourceFound: !!sourceNode,
+                        targetFound: !!targetNode,
+                    });
+                    return null; // Return null to indicate missing nodes
+                }
+
                 const connections = usePhaseLayout
                     ? getPhaseConnectionPoint(sourceNode, targetNode)
                     : getCardConnectionPoint(sourceNode, targetNode);
+
+                if (connections === null) {
+                    return null; // Missing node case
+                }
+
                 if (
                     !connections ||
                     !connections.source ||
@@ -352,7 +409,7 @@ export default {
                         .attr("orient", "auto")
                         .append("path")
                         .attr("d", "M0,0 L0,6 L9,3 z")
-                        .attr("fill", "#ff5630");
+                        .attr("fill", "var(--ctp-red)");
                 }
 
                 if (epicMarker.empty()) {
@@ -366,7 +423,7 @@ export default {
                         .attr("orient", "auto")
                         .append("path")
                         .attr("d", "M0,0 L0,6 L9,3 z")
-                        .attr("fill", "#0052cc");
+                        .attr("fill", "var(--ctp-blue)");
                 }
             }
         };
@@ -382,12 +439,7 @@ export default {
 
             // Filter out epic nodes - we only want work tickets in phases
             const workNodes = originalNodes.filter(
-                (node) =>
-                    !(
-                        node.id.includes("Epic") ||
-                        node.label === "Epic" ||
-                        node.classification === "epic"
-                    ),
+                (node) => !(node.status && node.status === "Epic"),
             );
 
             // Create node map only for work tickets
@@ -504,7 +556,7 @@ export default {
             // Define arrow markers for different edge types
             const defs = svg.append("defs");
 
-            // Blocks arrow (red)
+            // Blocks arrow (using Catppuccin red)
             defs.append("marker")
                 .attr("id", "arrow-blocks")
                 .attr("viewBox", "0 0 10 10")
@@ -515,9 +567,9 @@ export default {
                 .attr("orient", "auto")
                 .append("path")
                 .attr("d", "M0,0 L0,6 L9,3 z")
-                .attr("fill", "#ff5630");
+                .attr("fill", "var(--ctp-red)");
 
-            // Epic link arrow (blue)
+            // Epic link arrow (using Catppuccin blue)
             defs.append("marker")
                 .attr("id", "arrow-epic")
                 .attr("viewBox", "0 0 10 10")
@@ -528,7 +580,7 @@ export default {
                 .attr("orient", "auto")
                 .append("path")
                 .attr("d", "M0,0 L0,6 L9,3 z")
-                .attr("fill", "#0052cc");
+                .attr("fill", "var(--ctp-blue)");
 
             // Process data with better initial positioning
             nodes = props.graphData.nodes.map((d, i) => ({
@@ -537,11 +589,64 @@ export default {
                 y: height / 2 + Math.floor(i / 3) * 80,
             }));
 
-            links = props.graphData.edges.map((d) => ({
+            // Create a set of valid node IDs for quick lookup
+            const validNodeIds = new Set(nodes.map((n) => n.id));
+
+            // Filter out links that reference non-existent nodes OR epic links
+            const validEdges = props.graphData.edges.filter((edge) => {
+                const sourceExists = validNodeIds.has(edge.from);
+                const targetExists = validNodeIds.has(edge.to);
+
+                if (!sourceExists || !targetExists) {
+                    console.warn("Filtering out edge with missing node(s):", {
+                        from: edge.from,
+                        to: edge.to,
+                        sourceExists,
+                        targetExists,
+                        edgeType: edge.type,
+                    });
+                    return false;
+                }
+
+                // Filter out ALL epic-related links at the data level
+                if (edge.type === "epic link") {
+                    console.log("Filtering out epic link:", {
+                        from: edge.from,
+                        to: edge.to,
+                        type: edge.type,
+                    });
+                    return false;
+                }
+
+                // Also filter out links involving epic nodes
+                const sourceNode = nodes.find((n) => n.id === edge.from);
+                const targetNode = nodes.find((n) => n.id === edge.to);
+
+                if (
+                    sourceNode?.status === "Epic" ||
+                    targetNode?.status === "Epic"
+                ) {
+                    console.log("Filtering out link involving epic node:", {
+                        from: edge.from,
+                        to: edge.to,
+                        sourceIsEpic: sourceNode?.status === "Epic",
+                        targetIsEpic: targetNode?.status === "Epic",
+                    });
+                    return false;
+                }
+
+                return true;
+            });
+
+            links = validEdges.map((d) => ({
                 ...d,
                 source: d.from,
                 target: d.to,
             }));
+
+            console.log(
+                `Processed ${props.graphData.edges.length} edges, kept ${validEdges.length} valid edges`,
+            );
 
             // Create links
             linkElements = g
@@ -550,8 +655,9 @@ export default {
                 .enter()
                 .append("path")
                 .attr("class", "link")
+                .attr("data-type", (d) => d.type)
                 .attr("stroke", (d) =>
-                    d.type === "Blocks" ? "#ff5630" : "#0052cc",
+                    d.type === "Blocks" ? "var(--ctp-red)" : "var(--ctp-blue)",
                 )
                 .attr("stroke-width", 2.5)
                 .attr("stroke-dasharray", (d) =>
@@ -677,7 +783,9 @@ export default {
                 // Also ensure stroke attributes are properly set
                 linkElements
                     .attr("stroke", (d) =>
-                        d.type === "Blocks" ? "#ff5630" : "#0052cc",
+                        d.type === "Blocks"
+                            ? "var(--ctp-red)"
+                            : "var(--ctp-blue)",
                     )
                     .attr("stroke-width", 2);
             }
@@ -707,34 +815,10 @@ export default {
             cardElements
                 .append("rect")
                 .attr("class", "card-background")
-                .attr("width", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? 160
-                        : 140,
-                )
-                .attr("height", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? 90
-                        : 80,
-                )
-                .attr("x", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -80
-                        : -70,
-                )
-                .attr("y", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -45
-                        : -40,
-                )
+                .attr("width", (d) => (d.status === "Epic" ? 160 : 140))
+                .attr("height", (d) => (d.status === "Epic" ? 90 : 80))
+                .attr("x", (d) => (d.status === "Epic" ? -80 : -70))
+                .attr("y", (d) => (d.status === "Epic" ? -45 : -40))
                 .attr("rx", 8)
                 .attr("ry", 8)
                 .attr("fill", "#ffffff")
@@ -765,28 +849,10 @@ export default {
             cardElements
                 .append("rect")
                 .attr("class", "status-indicator")
-                .attr("width", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? 160
-                        : 140,
-                )
+                .attr("width", (d) => (d.status === "Epic" ? 160 : 140))
                 .attr("height", 6)
-                .attr("x", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -80
-                        : -70,
-                )
-                .attr("y", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -45
-                        : -40,
-                )
+                .attr("x", (d) => (d.status === "Epic" ? -80 : -70))
+                .attr("y", (d) => (d.status === "Epic" ? -45 : -40))
                 .attr("rx", 6)
                 .attr("ry", 6)
                 .attr("fill", (d) => {
@@ -815,13 +881,7 @@ export default {
                 .append("text")
                 .attr("class", "card-id")
                 .attr("x", 0)
-                .attr("y", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -25
-                        : -20,
-                )
+                .attr("y", (d) => (d.status === "Epic" ? -25 : -20))
                 .attr("text-anchor", "middle")
                 .attr("font-size", "12px")
                 .attr("font-weight", "bold")
@@ -833,13 +893,7 @@ export default {
                 .append("text")
                 .attr("class", "card-title")
                 .attr("x", 0)
-                .attr("y", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? -7
-                        : -3,
-                )
+                .attr("y", (d) => (d.status === "Epic" ? -7 : -3))
                 .attr("text-anchor", "middle")
                 .attr("font-size", "10px")
                 .attr("font-weight", "normal")
@@ -847,12 +901,7 @@ export default {
                 .each(function (d) {
                     const text = d3.select(this);
                     const words = d.label.split(/\s+/);
-                    const maxWidth =
-                        d.id.includes("Epic") ||
-                        d.label === "Epic" ||
-                        d.classification === "epic"
-                            ? 150
-                            : 130;
+                    const maxWidth = d.status === "Epic" ? 150 : 130;
                     const lineHeight = 12;
                     const maxLines = 2;
 
@@ -918,13 +967,7 @@ export default {
                 .append("text")
                 .attr("class", "card-status")
                 .attr("x", 0)
-                .attr("y", (d) =>
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic"
-                        ? 35
-                        : 30,
-                )
+                .attr("y", (d) => (d.status === "Epic" ? 35 : 30))
                 .attr("text-anchor", "middle")
                 .attr("font-size", "9px")
                 .attr("font-weight", "600")
@@ -990,6 +1033,24 @@ export default {
                             typeof linkData.target === "string"
                                 ? linkData.target
                                 : linkData.target.id;
+
+                        // Skip epic-related links entirely in phase layout
+                        if (layoutType.value === "phase") {
+                            const sourceNode = nodes.find(
+                                (n) => n.id === sourceId,
+                            );
+                            const targetNode = nodes.find(
+                                (n) => n.id === targetId,
+                            );
+                            const isSourceEpic =
+                                sourceNode && sourceNode.status === "Epic";
+                            const isTargetEpic =
+                                targetNode && targetNode.status === "Epic";
+
+                            if (isSourceEpic || isTargetEpic) {
+                                return; // Skip this link entirely
+                            }
+                        }
 
                         if (
                             sourceId === currentNode.id ||
@@ -1085,6 +1146,33 @@ export default {
             } else {
                 createPhaseLayout();
             }
+
+            // Ensure epic tickets are hidden in phase layout from the start
+            if (layoutType.value === "phase") {
+                nodeElements.style("display", (d) => {
+                    const isEpic = d.status === "Epic";
+                    return isEpic ? "none" : "block";
+                });
+
+                linkElements.each(function (d) {
+                    const sourceIsEpic =
+                        d.source.status && d.source.status === "Epic";
+                    const targetIsEpic =
+                        d.target.status && d.target.status === "Epic";
+
+                    if (sourceIsEpic || targetIsEpic) {
+                        d3.select(this)
+                            .style("display", "none")
+                            .style("visibility", "hidden")
+                            .style("opacity", 0);
+                    } else {
+                        d3.select(this)
+                            .style("display", "block")
+                            .style("visibility", "visible")
+                            .style("opacity", 1);
+                    }
+                });
+            }
         };
 
         const createForceSimulation = () => {
@@ -1115,13 +1203,7 @@ export default {
                     "collision",
                     d3
                         .forceCollide()
-                        .radius((d) =>
-                            d.id.includes("Epic") ||
-                            d.label === "Epic" ||
-                            d.classification === "epic"
-                                ? 90
-                                : 80,
-                        ),
+                        .radius((d) => (d.status === "Epic" ? 90 : 80)),
                 );
 
             simulation.on("tick", () => {
@@ -1255,6 +1337,34 @@ export default {
             // Ensure markers are available before working with links
             ensureMarkers();
 
+            // IMMEDIATELY hide all epic nodes and epic links before any other processing
+            nodeElements.style("display", (d) => {
+                const isEpic = d.status === "Epic";
+                return isEpic ? "none" : "block";
+            });
+
+            linkElements.each(function (d) {
+                // Check if this is an epic link by type
+                if (d.type === "epic link") {
+                    d3.select(this)
+                        .style("display", "none")
+                        .style("visibility", "hidden")
+                        .style("opacity", 0);
+                    return;
+                }
+
+                // Check if this involves epic nodes
+                const sourceIsEpic = d.source?.status === "Epic";
+                const targetIsEpic = d.target?.status === "Epic";
+
+                if (sourceIsEpic || targetIsEpic) {
+                    d3.select(this)
+                        .style("display", "none")
+                        .style("visibility", "hidden")
+                        .style("opacity", 0);
+                }
+            });
+
             const { nodeMap, phases } = calculatePhases();
 
             // Update phase count for display
@@ -1378,10 +1488,7 @@ export default {
                     const node = nodes.find((n) => n.id === nodeId);
                     if (node) {
                         // Skip epic nodes in phase layout
-                        const isEpic =
-                            node.id.includes("Epic") ||
-                            node.label === "Epic" ||
-                            node.classification === "epic";
+                        const isEpic = node.status === "Epic";
 
                         if (!isEpic) {
                             // Center cards in column with slight offset for visual variety
@@ -1404,6 +1511,15 @@ export default {
 
             // Position links immediately for phase layout using side connections
             linkElements.each(function (d, i) {
+                // FIRST: Check if this is an epic link or involves epic nodes - hide immediately
+                if (d.type === "epic link") {
+                    d3.select(this)
+                        .style("display", "none")
+                        .style("visibility", "hidden")
+                        .style("opacity", 0);
+                    return;
+                }
+
                 // Resolve source and target nodes from IDs if needed
                 const sourceNode =
                     typeof d.source === "string"
@@ -1416,24 +1532,15 @@ export default {
 
                 // Filter out epic relations in phase layout
                 if (sourceNode && targetNode) {
-                    const isSourceEpic =
-                        sourceNode.id.includes("Epic") ||
-                        sourceNode.label === "Epic" ||
-                        sourceNode.classification === "epic";
-                    const isTargetEpic =
-                        targetNode.id.includes("Epic") ||
-                        targetNode.label === "Epic" ||
-                        targetNode.classification === "epic";
+                    const isSourceEpic = sourceNode.status === "Epic";
+                    const isTargetEpic = targetNode.status === "Epic";
 
-                    // Skip epic relations in phase layout
+                    // Hide ALL epic-related links in phase layout
                     if (isSourceEpic || isTargetEpic) {
                         d3.select(this)
-                            .attr("x1", -9999)
-                            .attr("y1", -9999)
-                            .attr("x2", -9999)
-                            .attr("y2", -9999)
-                            .style("opacity", 0)
-                            .style("visibility", "hidden");
+                            .style("display", "none")
+                            .style("visibility", "hidden")
+                            .style("opacity", 0);
                         return;
                     }
                 }
@@ -1443,6 +1550,15 @@ export default {
                     targetNode,
                 );
 
+                if (connections === null) {
+                    // Node not found - hide this link completely
+                    d3.select(this)
+                        .style("display", "none")
+                        .style("visibility", "hidden")
+                        .style("opacity", 0);
+                    return;
+                }
+
                 if (
                     connections &&
                     connections.source &&
@@ -1451,10 +1567,13 @@ export default {
                 ) {
                     d3.select(this)
                         .attr("d", connections.path)
+                        .style("display", "block")
                         .style("visibility", "visible")
                         .style("opacity", 1)
                         .attr("stroke", (d) =>
-                            d.type === "Blocks" ? "#ff5630" : "#0052cc",
+                            d.type === "Blocks"
+                                ? "var(--ctp-red)"
+                                : "var(--ctp-blue)",
                         )
                         .attr("stroke-width", 2);
                 } else {
@@ -1462,18 +1581,44 @@ export default {
                 }
             });
 
-            // Add safeguard to maintain link positions
+            // Add safeguard to maintain link positions and enforce epic hiding
             const maintainPhaseLinks = () => {
                 if (layoutType.value !== "phase") return;
 
                 linkElements.each(function (d, i) {
                     const elem = d3.select(this);
-                    const currentX1 = elem.attr("x1");
-                    const currentY1 = elem.attr("y1");
-                    const currentX2 = elem.attr("x2");
-                    const currentY2 = elem.attr("y2");
 
-                    // Check if path was reset or is invalid
+                    // ALWAYS check for epic links first - regardless of path state
+                    if (d.type === "epic link") {
+                        elem.style("display", "none")
+                            .style("visibility", "hidden")
+                            .style("opacity", 0);
+                        return;
+                    }
+
+                    const sourceNode =
+                        typeof d.source === "string"
+                            ? nodes.find((n) => n.id === d.source)
+                            : d.source;
+                    const targetNode =
+                        typeof d.target === "string"
+                            ? nodes.find((n) => n.id === d.target)
+                            : d.target;
+
+                    if (sourceNode && targetNode) {
+                        const isSourceEpic = sourceNode.status === "Epic";
+                        const isTargetEpic = targetNode.status === "Epic";
+
+                        // ALWAYS hide epic-related links
+                        if (isSourceEpic || isTargetEpic) {
+                            elem.style("display", "none")
+                                .style("visibility", "hidden")
+                                .style("opacity", 0);
+                            return;
+                        }
+                    }
+
+                    // Check if path was reset or is invalid for non-epic links
                     const currentPath = elem.attr("d");
                     if (
                         !currentPath ||
@@ -1481,85 +1626,67 @@ export default {
                         currentPath === "M0,0 L0,0" ||
                         currentPath === "M-9999,-9999 L-9999,-9999"
                     ) {
-                        const sourceNode =
-                            typeof d.source === "string"
-                                ? nodes.find((n) => n.id === d.source)
-                                : d.source;
-                        const targetNode =
-                            typeof d.target === "string"
-                                ? nodes.find((n) => n.id === d.target)
-                                : d.target;
-
                         if (sourceNode && targetNode) {
-                            const isSourceEpic =
-                                sourceNode.id.includes("Epic") ||
-                                sourceNode.label === "Epic" ||
-                                sourceNode.classification === "epic";
-                            const isTargetEpic =
-                                targetNode.id.includes("Epic") ||
-                                targetNode.label === "Epic" ||
-                                targetNode.classification === "epic";
-
-                            if (isSourceEpic || isTargetEpic) {
-                                elem.style("opacity", 0).style(
-                                    "visibility",
-                                    "hidden",
-                                );
-                            } else {
-                                const connections = getPhaseConnectionPoint(
-                                    sourceNode,
-                                    targetNode,
-                                );
-                                if (
-                                    connections &&
-                                    connections.source &&
-                                    connections.target &&
-                                    connections.path
-                                ) {
-                                    elem.attr("d", connections.path)
-                                        .style("visibility", "visible")
-                                        .style("opacity", 1);
-                                }
+                            const connections = getPhaseConnectionPoint(
+                                sourceNode,
+                                targetNode,
+                            );
+                            if (connections === null) {
+                                // Node not found - hide this link
+                                elem.style("display", "none")
+                                    .style("visibility", "hidden")
+                                    .style("opacity", 0);
+                            } else if (
+                                connections &&
+                                connections.source &&
+                                connections.target &&
+                                connections.path
+                            ) {
+                                elem.attr("d", connections.path)
+                                    .style("display", "block")
+                                    .style("visibility", "visible")
+                                    .style("opacity", 1);
                             }
                         }
                     }
                 });
             };
 
-            // Monitor and maintain every 100ms for first 3 seconds
-            const monitorInterval = setInterval(maintainPhaseLinks, 100);
-            setTimeout(() => clearInterval(monitorInterval), 3000);
+            // Monitor and maintain every 50ms for first 5 seconds (more frequent and longer)
+            const monitorInterval = setInterval(maintainPhaseLinks, 50);
+            setTimeout(() => clearInterval(monitorInterval), 5000);
 
-            // Hide epic nodes in phase layout
-            nodeElements.style("opacity", (d) => {
-                const isEpic =
-                    d.id.includes("Epic") ||
-                    d.label === "Epic" ||
-                    d.classification === "epic";
-                return isEpic ? 0 : 1;
+            // Completely hide epic nodes in phase layout
+            nodeElements.style("display", (d) => {
+                const isEpic = d.status === "Epic";
+                return isEpic ? "none" : "block";
             });
 
-            // Hide epic links in phase layout and ensure markers are properly applied
-            linkElements
-                .style("opacity", (d) => {
-                    const sourceIsEpic =
-                        d.source.id &&
-                        (d.source.id.includes("Epic") ||
-                            d.source.label === "Epic" ||
-                            d.source.classification === "epic");
-                    const targetIsEpic =
-                        d.target.id &&
-                        (d.target.id.includes("Epic") ||
-                            d.target.label === "Epic" ||
-                            d.target.classification === "epic");
-                    return sourceIsEpic || targetIsEpic ? 0 : 1;
-                })
-                .attr("marker-end", (d) => {
-                    // Re-apply marker-end to ensure arrows are visible
-                    return d.type === "Blocks"
-                        ? "url(#arrow-blocks)"
-                        : "url(#arrow-epic)";
-                });
+            // Completely hide epic links in phase layout and ensure markers are properly applied
+            linkElements.each(function (d) {
+                const sourceIsEpic =
+                    d.source.status && d.source.status === "Epic";
+                const targetIsEpic =
+                    d.target.status && d.target.status === "Epic";
+
+                if (sourceIsEpic || targetIsEpic) {
+                    d3.select(this)
+                        .style("display", "none")
+                        .style("visibility", "hidden")
+                        .style("opacity", 0);
+                } else {
+                    d3.select(this)
+                        .style("display", "block")
+                        .style("visibility", "visible")
+                        .style("opacity", 1)
+                        .attr(
+                            "marker-end",
+                            d.type === "Blocks"
+                                ? "url(#arrow-blocks)"
+                                : "url(#arrow-epic)",
+                        );
+                }
+            });
 
             // Log positioning results for debugging
             if (missingNodes.length > 0) {
@@ -1581,12 +1708,7 @@ export default {
             // Verify no epic nodes are in phases
             const epicInPhases = phases.flat().filter((nodeId) => {
                 const node = props.graphData.nodes.find((n) => n.id === nodeId);
-                return (
-                    node &&
-                    (node.id.includes("Epic") ||
-                        node.label === "Epic" ||
-                        node.classification === "epic")
-                );
+                return node && node.status === "Epic";
             });
 
             console.log(
@@ -1606,11 +1728,43 @@ export default {
                 .attrTween("d", function (d) {
                     const currentPath = this.getAttribute("d") || "M0,0 L0,0";
                     const targetPath = getSafeConnectionPoint(d, "path", true);
+
+                    // If targetPath is null (missing node), hide the link
+                    if (targetPath === null || targetPath === "M0,0 L0,0") {
+                        d3.select(this)
+                            .style("display", "none")
+                            .style("visibility", "hidden")
+                            .style("opacity", 0);
+                        return d3.interpolate(currentPath, currentPath);
+                    }
+
                     return d3.interpolate(currentPath, targetPath);
                 })
                 .on("end", function () {
-                    // Ensure markers are visible after animation completes and update for phase layout
+                    // Comprehensive epic link cleanup after animation
                     linkElements.each(function (d) {
+                        const elem = d3.select(this);
+
+                        // First check: epic link type
+                        if (d.type === "epic link") {
+                            elem.style("display", "none")
+                                .style("visibility", "hidden")
+                                .style("opacity", 0);
+                            return;
+                        }
+
+                        // Second check: nodes involving epics
+                        const sourceIsEpic = d.source?.status === "Epic";
+                        const targetIsEpic = d.target?.status === "Epic";
+
+                        if (sourceIsEpic || targetIsEpic) {
+                            elem.style("display", "none")
+                                .style("visibility", "hidden")
+                                .style("opacity", 0);
+                            return;
+                        }
+
+                        // Only process valid work-to-work links
                         const connections = getPhaseConnectionPoint(
                             d.source,
                             d.target,
@@ -1620,25 +1774,37 @@ export default {
                             connections.source &&
                             connections.target
                         ) {
-                            d3.select(this)
-                                .attr("x1", connections.source.x || 0)
+                            elem.attr("x1", connections.source.x || 0)
                                 .attr("y1", connections.source.y || 0)
                                 .attr("x2", connections.target.x || 0)
                                 .attr("y2", connections.target.y || 0)
-                                .attr("marker-end", (d) =>
-                                    d.type === "Blocks"
-                                        ? "url(#arrow-blocks)"
-                                        : "url(#arrow-epic)",
-                                );
+                                .attr("marker-end", "url(#arrow-blocks)")
+                                .style("display", "block")
+                                .style("visibility", "visible")
+                                .style("opacity", 1);
                         }
                     });
+
+                    // Final cleanup sweep - run after a short delay to catch any stragglers
+                    setTimeout(() => {
+                        linkElements.each(function (d) {
+                            if (
+                                d.type === "epic link" ||
+                                d.source?.status === "Epic" ||
+                                d.target?.status === "Epic"
+                            ) {
+                                d3.select(this)
+                                    .style("display", "none")
+                                    .style("visibility", "hidden")
+                                    .style("opacity", 0);
+                            }
+                        });
+                    }, 100);
                 });
         };
 
         const buildHierarchy = () => {
-            const epicNode = nodes.find(
-                (n) => n.id.includes("Epic") || n.label === "Epic",
-            );
+            const epicNode = nodes.find((n) => n.status === "Epic");
             if (!epicNode)
                 return {
                     id: "root",
@@ -1701,13 +1867,25 @@ export default {
                     d.fy = null;
                 });
                 // Restore all nodes and links visibility
-                nodeElements.style("opacity", 1);
-                linkElements.style("opacity", 1);
+                nodeElements
+                    .style("opacity", 1)
+                    .style("display", "block")
+                    .style("visibility", "visible");
+                linkElements
+                    .style("opacity", 1)
+                    .style("display", "block")
+                    .style("visibility", "visible");
                 createForceSimulation();
             } else if (layoutType.value === "tree") {
                 // Restore all nodes and links visibility for tree layout
-                nodeElements.style("opacity", 1);
-                linkElements.style("opacity", 1);
+                nodeElements
+                    .style("opacity", 1)
+                    .style("display", "block")
+                    .style("visibility", "visible");
+                linkElements
+                    .style("opacity", 1)
+                    .style("display", "block")
+                    .style("visibility", "visible");
                 createTreeLayout();
             } else {
                 createPhaseLayout();
@@ -1734,12 +1912,7 @@ export default {
 
             let debugMessage = `Phase Analysis:\n\n`;
             const workNodes = props.graphData.nodes.filter(
-                (node) =>
-                    !(
-                        node.id.includes("Epic") ||
-                        node.label === "Epic" ||
-                        node.classification === "epic"
-                    ),
+                (node) => !(node.status && node.status === "Epic"),
             );
 
             debugMessage += `Total nodes: ${props.graphData.nodes.length}\n`;
@@ -2137,21 +2310,21 @@ export default {
 
 /* Dependency type specific styling */
 .link[data-type="Blocks"] {
-    stroke: #ff5630;
+    stroke: var(--ctp-red);
 }
 
 .link[data-type="Blocks"]:hover {
-    stroke: #ff7043 !important;
+    stroke: var(--ctp-maroon) !important;
     stroke-width: 6px !important;
 }
 
 .link[data-type="epic link"] {
-    stroke: #0052cc;
+    stroke: var(--ctp-blue);
     stroke-dasharray: 5, 5;
 }
 
 .link[data-type="epic link"]:hover {
-    stroke: #1976d2 !important;
+    stroke: var(--ctp-sapphire) !important;
     stroke-width: 6px !important;
     stroke-dasharray: 8, 8 !important;
 }
