@@ -42,17 +42,17 @@
                     :progressPercentage="apiData.stats?.progressPer || 0"
                 />
 
-                <!-- Charts Section -->
-                <ChartsSection
-                    :statusCounts="apiData.statusCounts || {}"
-                    :typeCounts="apiData.typeCounts || {}"
-                />
-
                 <!-- Dependency Graph -->
                 <DependencyGraph
                     v-if="apiData.graph"
                     :jiraBaseUrl="apiData.jiraBaseUrl"
                     :graphData="apiData.graph"
+                />
+
+                <!-- Charts Section -->
+                <ChartsSection
+                    :statusCounts="apiData.statusCounts || {}"
+                    :typeCounts="apiData.typeCounts || {}"
                 />
 
                 <!-- Issues List -->
