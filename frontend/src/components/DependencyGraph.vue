@@ -253,38 +253,27 @@ export default {
             const sourceY = sourceNode.y;
             const targetY = targetNode.y;
 
-            // Create curved path for better routing with collision avoidance
-            const dx = targetX - sourceX;
-            const dy = targetY - sourceY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            // Create right-angle path (orthogonal routing)
+            // The path will go: source -> horizontal -> vertical -> target
+            const horizontalDistance = Math.abs(targetX - sourceX);
+            const verticalDistance = Math.abs(targetY - sourceY);
 
-            // Adaptive curve intensity based on distance and angle
-            const curveIntensity = Math.min(distance * 0.25, 100);
-            const verticalSeparation = Math.abs(dy);
+            // Create a right-angle path with a horizontal segment followed by vertical
+            // Add some padding to avoid overlapping with nodes
+            const horizontalExtension = Math.min(horizontalDistance * 0.6, 80);
+            const midX =
+                sourceX +
+                (targetX > sourceX
+                    ? horizontalExtension
+                    : -horizontalExtension);
 
             let path;
-            if (Math.abs(dy) < 30) {
-                // Nearly horizontal - gentle arc
-                const midX = sourceX + dx * 0.5;
-                const arcHeight =
-                    Math.sign(dy) * Math.max(20, curveIntensity * 0.3);
-                path = `M${sourceX},${sourceY} Q${midX},${sourceY + arcHeight} ${targetX},${targetY}`;
-            } else if (Math.abs(dx) < 50) {
-                // Nearly vertical - side curve to avoid overlap
-                const curveOffset =
-                    Math.sign(dx) * Math.max(30, curveIntensity * 0.4);
-                const midY = sourceY + dy * 0.5;
-                path = `M${sourceX},${sourceY} Q${sourceX + curveOffset},${midY} ${targetX},${targetY}`;
+            if (Math.abs(verticalDistance) < 10) {
+                // Nearly same height - direct horizontal line
+                path = `M${sourceX},${sourceY} L${targetX},${targetY}`;
             } else {
-                // Diagonal - smooth S-curve
-                const midX = sourceX + dx * 0.5;
-                const midY = sourceY + dy * 0.5;
-                const control1X = sourceX + dx * 0.25;
-                const control1Y = sourceY + dy * 0.1;
-                const control2X = targetX - dx * 0.25;
-                const control2Y = targetY - dy * 0.1;
-
-                path = `M${sourceX},${sourceY} C${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
+                // Right-angle path: horizontal then vertical
+                path = `M${sourceX},${sourceY} L${midX},${sourceY} L${midX},${targetY} L${targetX},${targetY}`;
             }
 
             return {
@@ -582,16 +571,32 @@ export default {
                 .on("mouseover", function (event, d) {
                     d3.select(this)
                         .transition()
-                        .duration(200)
-                        .attr("stroke-width", 4)
-                        .attr("opacity", 1);
+                        .duration(150)
+                        .attr("stroke-width", 5)
+                        .attr("opacity", 1)
+                        .style(
+                            "filter",
+                            "drop-shadow(0 3px 8px rgba(0,0,0,0.3))",
+                        )
+                        .style(
+                            "stroke-dasharray",
+                            d.type === "epic link" ? "8,8" : null,
+                        );
                 })
                 .on("mouseout", function (event, d) {
                     d3.select(this)
                         .transition()
-                        .duration(200)
+                        .duration(150)
                         .attr("stroke-width", 2.5)
-                        .attr("opacity", 0.8);
+                        .attr("opacity", 0.8)
+                        .style(
+                            "filter",
+                            "drop-shadow(0 1px 2px rgba(0,0,0,0.1))",
+                        )
+                        .style(
+                            "stroke-dasharray",
+                            d.type === "epic link" ? "5,5" : null,
+                        );
                 });
 
             // Ensure proper attributes are set immediately
@@ -1078,9 +1083,16 @@ export default {
             const width = graphContainer.value.clientWidth - 100;
             const height = graphContainer.value.clientHeight - 100;
 
-            // Calculate column width and spacing
+            // Calculate column width and spacing with increased spacing between phases
             const numPhases = phases.length;
-            const columnWidth = width / Math.max(numPhases, 1);
+            const minColumnWidth = 200; // Minimum width per column
+            const phaseGap = 60; // Gap between phases
+            const totalGapWidth = (numPhases - 1) * phaseGap;
+            const availableWidth = width - totalGapWidth;
+            const columnWidth = Math.max(
+                minColumnWidth,
+                availableWidth / Math.max(numPhases, 1),
+            );
             const padding = 50;
 
             // Calculate maximum height needed for all phases
@@ -1114,7 +1126,7 @@ export default {
                 .enter()
                 .insert("rect", ":first-child")
                 .attr("class", "phase-column")
-                .attr("x", (d, i) => i * columnWidth)
+                .attr("x", (d, i) => i * (columnWidth + phaseGap))
                 .attr("y", 0)
                 .attr("width", columnWidth - 10)
                 .attr("height", totalPhaseHeight)
@@ -1131,7 +1143,10 @@ export default {
                 .enter()
                 .append("text")
                 .attr("class", "phase-label")
-                .attr("x", (d, i) => i * columnWidth + columnWidth / 2)
+                .attr(
+                    "x",
+                    (d, i) => i * (columnWidth + phaseGap) + columnWidth / 2,
+                )
                 .attr("y", 30)
                 .attr("text-anchor", "middle")
                 .attr("font-size", "14px")
@@ -1144,7 +1159,8 @@ export default {
             let missingNodes = [];
 
             phases.forEach((phaseNodes, phaseIndex) => {
-                const x = phaseIndex * columnWidth + columnWidth / 2;
+                const x =
+                    phaseIndex * (columnWidth + phaseGap) + columnWidth / 2;
 
                 // Filter out epic nodes first to get accurate count
                 const workNodesInPhase = phaseNodes.filter((nodeId) => {
@@ -1903,14 +1919,27 @@ export default {
 
 /* Improved link styling */
 .link {
-    transition: all 0.2s ease;
+    transition: all 0.15s ease-in-out;
     cursor: pointer;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .link:hover {
-    stroke-width: 4px !important;
+    stroke-width: 6px !important;
     opacity: 1 !important;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)) !important;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)) brightness(1.1) !important;
+    transform-origin: center;
+    animation: pulse-connection 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-connection {
+    0% {
+        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)) brightness(1.1);
+    }
+    100% {
+        filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)) brightness(1.2);
+    }
 }
 
 /* Link animations */
@@ -1931,17 +1960,39 @@ export default {
     stroke: #ff5630;
 }
 
+.link[data-type="Blocks"]:hover {
+    stroke: #ff7043 !important;
+    stroke-width: 6px !important;
+}
+
 .link[data-type="epic link"] {
     stroke: #0052cc;
     stroke-dasharray: 5, 5;
 }
 
+.link[data-type="epic link"]:hover {
+    stroke: #1976d2 !important;
+    stroke-width: 6px !important;
+    stroke-dasharray: 8, 8 !important;
+}
+
 /* Phase layout specific improvements */
 .phase-column {
-    transition: opacity 0.2s ease;
+    transition: all 0.3s ease;
 }
 
 .phase-column:hover {
-    opacity: 0.1 !important;
+    opacity: 0.15 !important;
+    fill: var(--ctp-surface1) !important;
+}
+
+/* Enhanced phase spacing visual feedback */
+.phase-label {
+    transition: all 0.2s ease;
+}
+
+.phase-label:hover {
+    font-size: 16px !important;
+    fill: var(--ctp-blue) !important;
 }
 </style>
