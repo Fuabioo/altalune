@@ -1,48 +1,76 @@
 <template>
     <div class="dependency-graph">
         <div class="graph-header">
-            <h3>
-                Ticket Dependencies
-                <span v-if="phaseCount > 0" class="phase-counter"
-                    >({{ phaseCount }} phases)</span
-                >
-            </h3>
-            <div class="graph-controls">
-                <button @click="resetZoom" class="btn btn-secondary">
-                    Reset View
-                </button>
-                <!-- these toggles are for the development only, not production ready just don't break them -->
-                <!-- <button @click="toggleLayout" class="btn btn-secondary">
-                    {{
-                        layoutType === "phase"
-                            ? "Force Layout"
-                            : layoutType === "force"
-                              ? "Tree Layout"
-                              : "Phase Layout"
-                    }}
-                </button> -->
-                <!-- <button @click="debugPhases" class="btn btn-secondary">
-                    Debug Phases
-                </button> -->
-                <button @click="toggleFullscreen" class="btn btn-secondary">
-                    {{ isFullscreen ? "Exit Fullscreen" : "Fullscreen" }}
-                </button>
+            <div class="header-top">
+                <h3>
+                    Ticket Dependencies
+                    <span v-if="phaseCount > 0" class="phase-counter"
+                        >({{ phaseCount }} phases)</span
+                    >
+                </h3>
+                <div class="graph-controls">
+                    <button @click="resetZoom" class="btn btn-secondary">
+                        Reset View
+                    </button>
+                    <!-- these toggles are for the development only, not production ready just don't break them -->
+                    <!-- <button @click="toggleLayout" class="btn btn-secondary">
+                        {{
+                            layoutType === "phase"
+                                ? "Force Layout"
+                                : layoutType === "force"
+                                  ? "Tree Layout"
+                                  : "Phase Layout"
+                        }}
+                    </button> -->
+                    <!-- <button @click="debugPhases" class="btn btn-secondary">
+                        Debug Phases
+                    </button> -->
+                    <button @click="toggleFullscreen" class="btn btn-secondary">
+                        {{ isFullscreen ? "Exit Fullscreen" : "Fullscreen" }}
+                    </button>
+                    <button
+                        v-if="availableStatuses.size > 0"
+                        @click="toggleFilters"
+                        class="btn btn-secondary filter-toggle"
+                        :class="{ active: showFilters }"
+                        :aria-expanded="showFilters"
+                        aria-controls="filter-row"
+                    >
+                        <span class="filter-icon">▼</span>
+                        Filters
+                        <span
+                            v-if="statusFilters.size > 0"
+                            class="filter-count"
+                        >
+                            {{ statusFilters.size }}
+                        </span>
+                    </button>
+                </div>
             </div>
-            <div class="status-filters" v-if="availableStatuses.size > 0">
-                <span class="filter-label">Hide Status:</span>
-                <label
-                    v-for="status in Array.from(availableStatuses)"
-                    :key="status"
-                    class="status-filter-item"
-                >
-                    <input
-                        type="checkbox"
-                        :value="status"
-                        :checked="statusFilters.has(status)"
-                        @change="toggleStatusFilter(status)"
-                    />
-                    <span class="status-name">{{ status }}</span>
-                </label>
+            <div
+                id="filter-row"
+                class="filter-row"
+                v-if="availableStatuses.size > 0"
+                :class="{ expanded: showFilters }"
+            >
+                <div class="status-filters">
+                    <span class="filter-label">Hide Status:</span>
+                    <div class="filter-items">
+                        <label
+                            v-for="status in Array.from(availableStatuses)"
+                            :key="status"
+                            class="status-filter-item"
+                        >
+                            <input
+                                type="checkbox"
+                                :value="status"
+                                :checked="statusFilters.has(status)"
+                                @change="toggleStatusFilter(status)"
+                            />
+                            <span class="status-name">{{ status }}</span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="graph-legend">
@@ -174,6 +202,7 @@ export default {
         const isResizing = ref(false);
         const statusFilters = ref(new Set(["DEFERRED"]));
         const availableStatuses = ref(new Set());
+        const showFilters = ref(false);
 
         let svg, simulation, nodes, links, nodeElements, linkElements, zoom;
         let isInitialized = false;
@@ -2202,6 +2231,10 @@ export default {
             document.removeEventListener("keydown", handleKeydown);
         });
 
+        const toggleFilters = () => {
+            showFilters.value = !showFilters.value;
+        };
+
         const copyNodeLink = async (node) => {
             try {
                 // Generate Jira URL based on node ID and backend configuration
@@ -2354,11 +2387,13 @@ export default {
             isResizing,
             statusFilters,
             availableStatuses,
+            showFilters,
             resetZoom,
             toggleLayout,
             debugPhases,
             toggleFullscreen,
             toggleStatusFilter,
+            toggleFilters,
             startResize,
             closeDialog,
             handleDialogClose,
@@ -2381,12 +2416,30 @@ export default {
 }
 
 .graph-header {
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-color);
+}
+
+.header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-md) var(--spacing-lg);
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-color);
+}
+
+.filter-row {
+    max-height: 0;
+    overflow: hidden;
+    transition:
+        max-height 0.3s ease,
+        padding 0.3s ease;
+    background: var(--hover-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+.filter-row.expanded {
+    max-height: 200px;
+    padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .graph-header h3 {
@@ -2406,17 +2459,51 @@ export default {
 .graph-controls {
     display: flex;
     gap: var(--spacing-sm);
+    align-items: center;
 }
 
 .btn {
     padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--card-bg);
     color: var(--text-primary);
     font-size: var(--font-sm);
     cursor: pointer;
-    transition: var(--transition-normal);
+    transition: var(--transition-fast);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.filter-toggle .filter-icon {
+    transition: transform 0.3s ease;
+    font-size: 0.75em;
+    display: inline-block;
+}
+
+.filter-toggle.active .filter-icon {
+    transform: rotate(180deg);
+}
+
+.filter-toggle.active {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.filter-count {
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    min-width: 1.2em;
+    height: 1.2em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75em;
+    font-weight: var(--font-semibold);
 }
 
 .btn:hover {
@@ -2650,7 +2737,7 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .graph-header {
+    .header-top {
         flex-direction: column;
         gap: var(--spacing-md);
         align-items: stretch;
@@ -2658,6 +2745,39 @@ export default {
 
     .graph-controls {
         justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .status-filters {
+        align-items: flex-start;
+    }
+
+    .filter-items {
+        justify-content: flex-start;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .filter-label {
+        font-weight: var(--font-semibold);
+        margin-bottom: var(--spacing-xs);
+        align-self: flex-start;
+    }
+
+    .status-filter-item {
+        font-size: var(--font-sm);
+        padding: var(--spacing-xs);
+    }
+
+    .filter-row.expanded {
+        max-height: 400px;
+    }
+
+    .filter-count {
+        font-size: 0.7em;
+        min-width: 1em;
+        height: 1em;
     }
 
     .graph-legend {
@@ -2824,18 +2944,22 @@ export default {
 /* Status filters */
 .status-filters {
     display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.filter-items {
+    display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--spacing-md);
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border-color);
+    gap: var(--spacing-sm);
 }
 
 .filter-label {
     font-weight: var(--font-medium);
     color: var(--text-primary);
     margin-right: var(--spacing-sm);
+    white-space: nowrap;
 }
 
 .status-filter-item {
@@ -2844,12 +2968,16 @@ export default {
     gap: var(--spacing-xs);
     cursor: pointer;
     padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     transition: var(--transition-fast);
+    border: 1px solid transparent;
+    background: var(--card-bg);
+    white-space: nowrap;
 }
 
 .status-filter-item:hover {
     background-color: var(--hover-bg);
+    border-color: var(--border-color);
 }
 
 .status-filter-item input[type="checkbox"] {
