@@ -51,6 +51,7 @@
                 <!-- Dependency Graph -->
                 <DependencyGraph
                     v-if="apiData.graph"
+                    :jiraBaseUrl="apiData.jiraBaseUrl"
                     :graphData="apiData.graph"
                 />
 
@@ -153,6 +154,10 @@ export default {
 
                 const data = await response.json();
                 apiData.value = data;
+                // if the jira base url doesn't have a https:// prefix, add it
+                if (!apiData.value.jiraBaseUrl.startsWith("https://")) {
+                    apiData.value.jiraBaseUrl = `https://${apiData.value.jiraBaseUrl}`;
+                }
             } catch (err) {
                 console.error("Error fetching epic data:", err);
                 error.value = {
@@ -166,22 +171,6 @@ export default {
 
         const refreshData = () => {
             fetchEpicData();
-        };
-
-        const formatDate = (dateString) => {
-            if (!dateString) return "Unknown";
-
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return "Invalid Date";
-
-            return (
-                date.toLocaleDateString() +
-                " " +
-                date.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                })
-            );
         };
 
         const handleManageEpics = () => {

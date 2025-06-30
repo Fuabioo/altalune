@@ -122,6 +122,7 @@ func (s *Server) Start() error {
 			Epic         *model.Ticket     `json:"epic"`
 			All          []*model.Ticket   `json:"tickets"`
 			Total        int               `json:"total"`
+			JiraBaseURL  string            `json:"jiraBaseUrl"`
 		}
 
 		startAt := uint(0)
@@ -159,6 +160,7 @@ func (s *Server) Start() error {
 		response.TypeCounts = jira.CalculateTypeCounts(response.All)
 		response.Graph = jira.BuildGraph(response.All, ticket)
 		response.Issues = response.All
+		response.JiraBaseURL = s.config.jira.Workspace
 
 		// Find epic in the issues (if it exists)
 		for _, issue := range response.All {

@@ -101,6 +101,20 @@
                         >{{ selectedNode.status }}</span
                     >
                 </div>
+                <div class="tooltip-actions">
+                    <button
+                        @click="copyNodeLink(selectedNode)"
+                        class="tooltip-btn copy-btn"
+                    >
+                        📋 Copy Link
+                    </button>
+                    <button
+                        @click="openNodeInNewTab(selectedNode)"
+                        class="tooltip-btn open-btn"
+                    >
+                        🔗 Open in New Tab
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -113,6 +127,7 @@ import * as d3 from "d3";
 export default {
     name: "DependencyGraph",
     props: {
+        jiraBaseUrl: String,
         graphData: {
             type: Object,
             required: true,
@@ -2122,6 +2137,52 @@ export default {
             document.addEventListener("mouseup", handleMouseUp);
         };
 
+        const copyNodeLink = async (node) => {
+            try {
+                // Generate Jira URL based on node ID and backend configuration
+                const jiraBaseUrl =
+                    props.jiraBaseUrl || "https://example.atlassian.net";
+                const nodeUrl = `${jiraBaseUrl}/browse/${node.id}`;
+                await navigator.clipboard.writeText(nodeUrl);
+
+                // Show temporary feedback
+                const copyBtn = document.querySelector(".copy-btn");
+                if (copyBtn) {
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = "✅ Copied!";
+                    copyBtn.style.backgroundColor = "var(--success-color)";
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.backgroundColor = "";
+                    }, 2000);
+                }
+            } catch (error) {
+                console.warn("Failed to copy link:", error);
+                // Fallback for older browsers
+                const jiraBaseUrl =
+                    props.jiraBaseUrl || "https://example.atlassian.net";
+                const textArea = document.createElement("textarea");
+                textArea.value = `${jiraBaseUrl}/browse/${node.id}`;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand("copy");
+                } catch (fallbackError) {
+                    console.warn("Fallback copy failed:", fallbackError);
+                }
+                document.body.removeChild(textArea);
+            }
+        };
+
+        const openNodeInNewTab = (node) => {
+            // Generate Jira URL based on node ID and backend configuration
+            const jiraBaseUrl =
+                props.jiraBaseUrl || "https://example.atlassian.net";
+            const nodeUrl = `${jiraBaseUrl}/browse/${node.id}`;
+            window.open(nodeUrl, "_blank", "noopener,noreferrer");
+        };
+
         const handleFullscreenChange = () => {
             isFullscreen.value = !!(
                 document.fullscreenElement ||
@@ -2234,6 +2295,8 @@ export default {
             toggleFullscreen,
             toggleStatusFilter,
             startResize,
+            copyNodeLink,
+            openNodeInNewTab,
         };
     },
 };
@@ -2435,6 +2498,52 @@ export default {
     border-radius: var(--radius-sm);
     background: var(--hover-bg);
     color: var(--text-primary);
+}
+
+.tooltip-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+}
+
+.tooltip-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: var(--font-xs);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    white-space: nowrap;
+}
+
+.tooltip-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.copy-btn:hover {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.open-btn:hover {
+    background: var(--info-light);
+    color: var(--info-color);
+}
+
+.tooltip-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
 }
 
 @media (max-width: 768px) {
