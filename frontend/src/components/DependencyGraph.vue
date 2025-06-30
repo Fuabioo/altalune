@@ -85,38 +85,58 @@
             @mousedown="startResize"
             :class="{ active: isResizing }"
         ></div>
-        <div v-if="selectedNode" class="node-tooltip" :style="tooltipStyle">
-            <div class="tooltip-header">
-                <strong>{{ selectedNode.id }}</strong>
-                <button @click="selectedNode = null" class="close-tooltip">
-                    &times;
-                </button>
-            </div>
-            <div class="tooltip-content">
-                <div class="tooltip-label">{{ selectedNode.label }}</div>
-                <div v-if="selectedNode.status" class="tooltip-status">
-                    Status:
-                    <span
-                        :class="`status-${selectedNode.status.toLowerCase().replace(/\s+/g, '-')}`"
-                        >{{ selectedNode.status }}</span
-                    >
-                </div>
-                <div class="tooltip-actions">
+        <dialog
+            ref="nodeDialog"
+            class="node-dialog"
+            @close="handleDialogClose"
+            @click="handleDialogBackdropClick"
+            role="dialog"
+            :aria-labelledby="
+                selectedNode ? `dialog-title-${selectedNode.id}` : undefined
+            "
+            aria-modal="true"
+        >
+            <div v-if="selectedNode" class="dialog-content">
+                <div class="dialog-header">
+                    <strong :id="`dialog-title-${selectedNode.id}`">{{
+                        selectedNode.id
+                    }}</strong>
                     <button
-                        @click="copyNodeLink(selectedNode)"
-                        class="tooltip-btn copy-btn"
+                        @click="closeDialog"
+                        class="close-dialog"
+                        aria-label="Close dialog"
+                        type="button"
+                        style="padding: 0 16px"
                     >
-                        📋 Copy Link
-                    </button>
-                    <button
-                        @click="openNodeInNewTab(selectedNode)"
-                        class="tooltip-btn open-btn"
-                    >
-                        🔗 Open in New Tab
+                        &times;
                     </button>
                 </div>
+                <div class="dialog-body">
+                    <div class="dialog-label">{{ selectedNode.label }}</div>
+                    <div v-if="selectedNode.status" class="dialog-status">
+                        Status:
+                        <span
+                            :class="`status-${selectedNode.status.toLowerCase().replace(/\s+/g, '-')}`"
+                            >{{ selectedNode.status }}</span
+                        >
+                    </div>
+                    <div class="dialog-actions">
+                        <button
+                            @click="copyNodeLink(selectedNode)"
+                            class="dialog-btn copy-btn"
+                        >
+                            📋 Copy Link
+                        </button>
+                        <button
+                            @click="openNodeInNewTab(selectedNode)"
+                            class="dialog-btn open-btn"
+                        >
+                            🔗 Open in New Tab
+                        </button>
+                    </div>
+                </div>
             </div>
-        </div>
+        </dialog>
     </div>
 </template>
 
@@ -144,8 +164,8 @@ export default {
     },
     setup(props) {
         const graphContainer = ref(null);
+        const nodeDialog = ref(null);
         const selectedNode = ref(null);
-        const tooltipStyle = ref({});
         const layoutType = ref("phase");
         const phaseCount = ref(0);
         const debugInfo = ref(null);
@@ -1089,12 +1109,17 @@ export default {
             // Add click handler for nodes
             nodeElements.on("click", (event, d) => {
                 selectedNode.value = d;
-                const rect = graphContainer.value.getBoundingClientRect();
-                tooltipStyle.value = {
-                    position: "absolute",
-                    left: `${event.clientX - rect.left + 10}px`,
-                    top: `${event.clientY - rect.top - 10}px`,
-                };
+                nextTick(() => {
+                    if (nodeDialog.value) {
+                        nodeDialog.value.showModal();
+                        // Focus the close button for keyboard accessibility
+                        const closeBtn =
+                            nodeDialog.value.querySelector(".close-dialog");
+                        if (closeBtn) {
+                            closeBtn.focus();
+                        }
+                    }
+                });
             });
 
             // Add hover effects to nodes
@@ -2137,6 +2162,46 @@ export default {
             document.addEventListener("mouseup", handleMouseUp);
         };
 
+        const closeDialog = () => {
+            if (nodeDialog.value) {
+                nodeDialog.value.close();
+            }
+            selectedNode.value = null;
+            // Return focus to the graph container after closing
+            if (graphContainer.value) {
+                graphContainer.value.focus();
+            }
+        };
+
+        const handleDialogClose = () => {
+            selectedNode.value = null;
+        };
+
+        const handleDialogBackdropClick = (event) => {
+            // Close dialog when clicking on the backdrop (outside the dialog content)
+            if (event.target === nodeDialog.value) {
+                closeDialog();
+            }
+        };
+
+        const handleKeydown = (event) => {
+            if (
+                event.key === "Escape" &&
+                selectedNode.value &&
+                nodeDialog.value?.open
+            ) {
+                closeDialog();
+            }
+        };
+
+        onMounted(() => {
+            document.addEventListener("keydown", handleKeydown);
+        });
+
+        onUnmounted(() => {
+            document.removeEventListener("keydown", handleKeydown);
+        });
+
         const copyNodeLink = async (node) => {
             try {
                 // Generate Jira URL based on node ID and backend configuration
@@ -2279,8 +2344,8 @@ export default {
 
         return {
             graphContainer,
+            nodeDialog,
             selectedNode,
-            tooltipStyle,
             layoutType,
             phaseCount,
             debugInfo,
@@ -2295,6 +2360,9 @@ export default {
             toggleFullscreen,
             toggleStatusFilter,
             startResize,
+            closeDialog,
+            handleDialogClose,
+            handleDialogBackdropClick,
             copyNodeLink,
             openNodeInNewTab,
         };
@@ -2441,19 +2509,54 @@ export default {
     background: var(--bg-color);
 }
 
-.node-tooltip {
+.node-dialog {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0;
     background: var(--card-bg);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    padding: var(--spacing-sm);
-    border-radius: var(--radius-md);
-    max-width: 300px;
-    font-size: var(--font-sm);
-    z-index: var(--z-tooltip);
     box-shadow: var(--shadow-lg);
+    max-width: 350px;
+    min-width: 280px;
+    width: auto;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    opacity: 0;
+    scale: 0.9;
+    transition:
+        opacity 0.2s ease,
+        scale 0.2s ease;
 }
 
-.tooltip-header {
+.node-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition:
+        opacity 0.2s ease,
+        backdrop-filter 0.2s ease;
+}
+
+.node-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    scale: 1;
+}
+
+.node-dialog[open]::backdrop {
+    opacity: 1;
+}
+
+.dialog-content {
+    padding: var(--spacing-sm);
+    font-size: var(--font-sm);
+}
+
+.dialog-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2462,7 +2565,7 @@ export default {
     border-bottom: 1px solid var(--border-color);
 }
 
-.close-tooltip {
+.close-dialog {
     background: none;
     border: none;
     color: var(--text-secondary);
@@ -2472,27 +2575,27 @@ export default {
     margin-left: var(--spacing-sm);
 }
 
-.close-tooltip:hover {
+.close-dialog:hover {
     color: var(--text-primary);
 }
 
-.tooltip-content {
+.dialog-body {
     line-height: 1.4;
     color: var(--text-secondary);
 }
 
-.tooltip-label {
+.dialog-label {
     margin-bottom: var(--spacing-sm);
     color: var(--text-primary);
     font-weight: var(--font-medium);
 }
 
-.tooltip-status {
+.dialog-status {
     font-size: var(--font-xs);
     color: var(--text-muted);
 }
 
-.tooltip-status span {
+.dialog-status span {
     font-weight: var(--font-semibold);
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--radius-sm);
@@ -2500,7 +2603,7 @@ export default {
     color: var(--text-primary);
 }
 
-.tooltip-actions {
+.dialog-actions {
     display: flex;
     gap: var(--spacing-sm);
     margin-top: var(--spacing-md);
@@ -2508,7 +2611,7 @@ export default {
     border-top: 1px solid var(--border-color);
 }
 
-.tooltip-btn {
+.dialog-btn {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
@@ -2524,7 +2627,7 @@ export default {
     white-space: nowrap;
 }
 
-.tooltip-btn:hover {
+.dialog-btn:hover {
     background: var(--hover-bg);
     border-color: var(--primary-color);
     transform: translateY(-1px);
@@ -2541,7 +2644,7 @@ export default {
     color: var(--info-color);
 }
 
-.tooltip-btn:active {
+.dialog-btn:active {
     transform: translateY(0);
     box-shadow: none;
 }
@@ -2564,6 +2667,22 @@ export default {
 
     .graph-container {
         height: 400px;
+    }
+
+    .node-dialog {
+        max-width: calc(100vw - 2rem);
+        min-width: auto;
+        width: calc(100vw - 2rem);
+    }
+
+    .dialog-actions {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+
+    .dialog-btn {
+        width: 100%;
+        justify-content: center;
     }
 }
 
