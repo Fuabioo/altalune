@@ -1110,7 +1110,7 @@ export default {
                 .attr("y", (d) => (d.status === "Epic" ? -45 : -40))
                 .attr("rx", 8)
                 .attr("ry", 8)
-                .attr("fill", "#ffffff")
+                .attr("fill", "var(--card-bg)")
                 .attr("stroke", (d) => {
                     // Border color by classification
                     const classification =
@@ -1175,7 +1175,7 @@ export default {
                 .attr("text-anchor", "middle")
                 .attr("font-size", "12px")
                 .attr("font-weight", "bold")
-                .attr("fill", "#2d3748")
+                .attr("fill", "var(--text-primary)")
                 .text((d) => d.id);
 
             // Add story points badge if available
@@ -1206,7 +1206,7 @@ export default {
                 .attr("dominant-baseline", "central")
                 .attr("font-size", "9px")
                 .attr("font-weight", "bold")
-                .attr("fill", "#ffffff")
+                .attr("fill", "var(--card-bg)")
                 .text((d) => {
                     const points = d.points || d.storyPoints || d.story_points;
                     return points || "";
@@ -1221,7 +1221,7 @@ export default {
                 .attr("text-anchor", "middle")
                 .attr("font-size", "10px")
                 .attr("font-weight", "normal")
-                .attr("fill", "#4a5568")
+                .attr("fill", "var(--text-secondary)")
                 .each(function (d) {
                     const text = d3.select(this);
                     const words = d.label.split(/\s+/);
@@ -1317,19 +1317,95 @@ export default {
                 })
                 .text((d) => d.status);
 
-            // Add assignee text (top-right corner, very subtle)
-            cardElements
-                .filter((d) => d.assignee)
+            // Add assignee indication (avatar or unassigned indicator)
+            const assigneeIndicatorElements = cardElements.filter(
+                (d) => d.status !== "Epic",
+            );
+
+            // Add circular background for all cards (assigned and unassigned)
+            assigneeIndicatorElements
+                .append("circle")
+                .attr("class", "card-assignee-bg")
+                .attr("cx", 61)
+                .attr("cy", -29)
+                .attr("r", 7)
+                .attr("fill", (d) => {
+                    if (d.assignee && d.assigneeId) {
+                        return "var(--card-bg)"; // Theme background for assigned
+                    } else {
+                        return "var(--border-light)"; // Light theme color for unassigned
+                    }
+                })
+                .attr("stroke", (d) => {
+                    if (d.assignee && d.assigneeId) {
+                        return "var(--border-color)"; // Theme border for assigned
+                    } else {
+                        return "var(--border-color)"; // Theme border for unassigned
+                    }
+                })
+                .attr("stroke-width", "0.5")
+                .attr("opacity", "0.9");
+
+            // Add avatars for assigned tickets
+            assigneeIndicatorElements
+                .filter((d) => {
+                    if (!d.assignee || !d.assigneeId) return false;
+                    const assignee = props.assignees?.find(
+                        (a) => a.accountId === d.assigneeId,
+                    );
+                    return assignee?.avatarUrl;
+                })
+                .each(function (d) {
+                    const assignee = props.assignees?.find(
+                        (a) => a.accountId === d.assigneeId,
+                    );
+                    if (assignee?.avatarUrl) {
+                        const patternId = `avatar-pattern-${d.id}`;
+
+                        // Create pattern definition with correct positioning
+                        svg.append("defs")
+                            .append("pattern")
+                            .attr("id", patternId)
+                            .attr("patternUnits", "objectBoundingBox")
+                            .attr("width", 1)
+                            .attr("height", 1)
+                            .append("image")
+                            .attr("href", assignee.avatarUrl)
+                            .attr("width", 12)
+                            .attr("height", 12)
+                            .attr("x", 0)
+                            .attr("y", 0)
+                            .attr("preserveAspectRatio", "xMidYMid slice");
+
+                        // Add circle with pattern fill
+                        d3.select(this)
+                            .append("circle")
+                            .attr("class", "card-assignee-avatar")
+                            .attr("cx", 61)
+                            .attr("cy", -29)
+                            .attr("r", 6)
+                            .attr("fill", `url(#${patternId})`)
+                            .attr("opacity", "0.9")
+                            .append("title")
+                            .text(`Assigned to: ${d.assignee}`);
+                    }
+                });
+
+            // Add unassigned indicator (question mark or user icon)
+            assigneeIndicatorElements
+                .filter((d) => !d.assignee || !d.assigneeId)
                 .append("text")
-                .attr("class", "card-assignee")
-                .attr("x", (d) => (d.status === "Epic" ? 70 : 60))
-                .attr("y", (d) => (d.status === "Epic" ? -35 : -30))
-                .attr("text-anchor", "end")
-                .attr("font-size", "6px")
-                .attr("font-weight", "300")
-                .attr("fill", "#cbd5e1")
-                .attr("opacity", "0.6")
-                .text((d) => d.assignee.split(" ")[0].substring(0, 8)); // First name, max 8 chars
+                .attr("class", "card-unassigned-indicator")
+                .attr("x", 61)
+                .attr("y", -25)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "8px")
+                .attr("font-weight", "normal")
+                .attr("fill", "var(--text-muted)")
+                .attr("opacity", "0.7")
+                .text("?")
+                .append("title")
+                .text("Unassigned");
 
             // Add click handler for nodes
             nodeElements.on("click", (event, d) => {
@@ -3365,10 +3441,31 @@ export default {
     text-overflow: ellipsis;
 }
 
-/* Card assignee text */
-.card-assignee {
+/* Card assignee avatar */
+.card-assignee-bg {
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.1));
+    transition: all 0.2s ease;
+}
+
+.card-assignee-avatar {
+    transition: opacity 0.2s ease;
+    cursor: pointer;
+}
+
+.card-assignee-avatar:hover {
+    opacity: 1 !important;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.card-unassigned-indicator {
     font-family: inherit;
     user-select: none;
+    cursor: help;
+}
+
+.card-unassigned-indicator:hover {
+    opacity: 1 !important;
+    fill: var(--text-secondary);
 }
 
 /* Dialog assignee */
