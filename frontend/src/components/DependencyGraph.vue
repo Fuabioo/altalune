@@ -859,8 +859,14 @@ export default {
                 return true;
             });
 
+            // Order nodes by proximity (group related tickets together)
+            const orderedNodes = orderNodesByProximity(
+                filteredNodes,
+                props.graphData.edges,
+            );
+
             // Process data with better initial positioning
-            nodes = filteredNodes.map((d, i) => ({
+            nodes = orderedNodes.map((d, i) => ({
                 ...d,
                 x: width / 2 + ((i % 3) - 1) * 100,
                 y: height / 2 + Math.floor(i / 3) * 80,
@@ -1903,28 +1909,25 @@ export default {
                 const startY = padding + 80;
                 let workNodeIndex = 0; // Track only work nodes for positioning
 
-                phaseNodes.forEach((nodeId) => {
-                    const node = nodes.find((n) => n.id === nodeId);
-                    if (node) {
-                        // Skip epic nodes in phase layout
-                        const isEpic = node.status === "Epic";
+                // Order phase nodes by proximity before positioning
+                const workNodesData = phaseNodes
+                    .map((nodeId) => nodes.find((n) => n.id === nodeId))
+                    .filter((node) => node && node.status !== "Epic");
 
-                        if (!isEpic) {
-                            // Center cards in column with slight offset for visual variety
-                            const offsetRange = Math.min(20, columnWidth / 8);
-                            node.x = x + (Math.random() - 0.5) * offsetRange;
-                            node.y = startY + workNodeIndex * finalSpacing;
-                            node.fx = node.x;
-                            node.fy = node.y;
-                            totalPositioned++;
-                            workNodeIndex++; // Only increment for work nodes
-                        }
-                    } else {
-                        missingNodes.push(nodeId);
-                        console.warn(
-                            `Node ${nodeId} not found in nodes array for phase ${phaseIndex + 1}`,
-                        );
-                    }
+                const orderedPhaseNodes = orderNodesByProximity(
+                    workNodesData,
+                    props.graphData.edges,
+                );
+
+                orderedPhaseNodes.forEach((node) => {
+                    // Center cards in column with slight offset for visual variety
+                    const offsetRange = Math.min(20, columnWidth / 8);
+                    node.x = x + (Math.random() - 0.5) * offsetRange;
+                    node.y = startY + workNodeIndex * finalSpacing;
+                    node.fx = node.x;
+                    node.fy = node.y;
+                    totalPositioned++;
+                    workNodeIndex++; // Only increment for work nodes
                 });
             });
 
@@ -2450,6 +2453,91 @@ export default {
 
         const toggleAssigneeRow = () => {
             showAssigneeRow.value = !showAssigneeRow.value;
+        };
+
+        // Order nodes by proximity to group related tickets together
+        const orderNodesByProximity = (nodes, edges) => {
+            const epicNodes = nodes.filter((n) => n.classification === "epic");
+            const workNodes = nodes.filter((n) => n.classification !== "epic");
+
+            if (workNodes.length === 0) return [...epicNodes, ...workNodes];
+
+            // Build adjacency map for connections
+            const adjacencyMap = new Map();
+            workNodes.forEach((node) => {
+                adjacencyMap.set(node.id, new Set());
+            });
+
+            // Add connections based on edges
+            edges.forEach((edge) => {
+                if (adjacencyMap.has(edge.from) && adjacencyMap.has(edge.to)) {
+                    adjacencyMap.get(edge.from).add(edge.to);
+                    adjacencyMap.get(edge.to).add(edge.from);
+                }
+            });
+
+            // Group nodes by connectivity
+            const visited = new Set();
+            const orderedGroups = [];
+
+            // Start with nodes that have the most connections
+            const nodesByConnections = workNodes
+                .map((node) => ({
+                    node,
+                    connections: adjacencyMap.get(node.id)?.size || 0,
+                }))
+                .sort((a, b) => b.connections - a.connections);
+
+            nodesByConnections.forEach(({ node }) => {
+                if (!visited.has(node.id)) {
+                    const group = [];
+                    const queue = [node];
+
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+                        if (!visited.has(current.id)) {
+                            visited.add(current.id);
+                            group.push(current);
+
+                            // Add connected nodes to queue
+                            const connections =
+                                adjacencyMap.get(current.id) || new Set();
+                            connections.forEach((connectedId) => {
+                                if (!visited.has(connectedId)) {
+                                    const connectedNode = workNodes.find(
+                                        (n) => n.id === connectedId,
+                                    );
+                                    if (connectedNode) {
+                                        queue.push(connectedNode);
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    if (group.length > 0) {
+                        // Sort group by status progression (new -> indeterminate -> done)
+                        group.sort((a, b) => {
+                            const statusOrder = {
+                                new: 0,
+                                indeterminate: 1,
+                                done: 2,
+                            };
+                            return (
+                                (statusOrder[a.classification] || 0) -
+                                (statusOrder[b.classification] || 0)
+                            );
+                        });
+                        orderedGroups.push(group);
+                    }
+                }
+            });
+
+            // Flatten groups - larger groups first
+            orderedGroups.sort((a, b) => b.length - a.length);
+            const orderedWorkNodes = orderedGroups.flat();
+
+            return [...epicNodes, ...orderedWorkNodes];
         };
 
         const startResize = (event) => {
