@@ -3,7 +3,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - cd frontend && bun install && bun run build
+    - sh -c "cd frontend && bun install && bun run build"
 
 builds:
   - env:
