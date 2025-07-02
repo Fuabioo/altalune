@@ -42,7 +42,7 @@ brew upgrade altalune
 
 ```bash
 # Add the repository
-curl -1sLf 'https://dl.cloudsmith.io/public/fuabioo/apt-archive/setup.deb.sh' | sudo -E bash
+head to apt.fuabioo.com
 
 # Install altalune
 sudo apt update
