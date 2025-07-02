@@ -19,7 +19,7 @@ build:
     @just build-fe
     @echo "Building {{binary_name}}..."
     @mkdir -p {{build_dir}}
-    @go build -o {{build_dir}}/{{binary_name}} {{cmd_dir}}
+    @CGO_ENABLED=0 go build -ldflags="-s -w -extldflags=-static" -o {{build_dir}}/{{binary_name}} {{cmd_dir}}
     @echo "Binary built: {{build_dir}}/{{binary_name}}"
 
 # Run the proxy server
