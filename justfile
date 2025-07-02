@@ -49,6 +49,12 @@ test-go:
     @echo "Running Go tests..."
     @go test -v ./...
 
+# Generate snapshot release
+snapshot:
+    @echo "Generating snapshot release..."
+    @goreleaser release --snapshot --clean
+    @echo "Snapshot generated in dist/"
+
 # Download dependencies
 deps:
     @echo "Downloading Go dependencies..."
@@ -72,6 +78,7 @@ help:
     @echo "  run             Run both frontend and backend concurrently"
     @echo "  run-be          Run only the backend server"
     @echo "  run-fe          Run only the frontend dev server"
+    @echo "  snapshot        Generate snapshot release"
     @echo "  deps            Download all dependencies (Go + Frontend)"
     @echo "  clean           Clean build artifacts"
     @echo "  help-cli        Show CLI help"
